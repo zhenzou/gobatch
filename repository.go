@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"time"
+
 	"github.com/chararch/gobatch/status"
 	"github.com/chararch/gobatch/util"
-	"time"
 )
 
 type batchJobInstance struct {
@@ -74,7 +75,7 @@ type batchStepContext struct {
 	LastUpdated   time.Time
 }
 
-//load or save job instance by name & parameters
+// load or save job instance by name & parameters
 func findJobInstance(jobName string, params map[string]interface{}) (*batchJobInstance, BatchError) {
 	str, err := util.JsonString(params)
 	if err != nil {
@@ -139,7 +140,7 @@ func createJobInstance(jobName string, jobParams map[string]interface{}) (*batch
 	return jobInstance, nil
 }
 
-//load or save job executions by instance
+// load or save job executions by instance
 func findLastJobExecutionByInstance(jobInstance *batchJobInstance) (*JobExecution, BatchError) {
 	rows, err := db.Query("SELECT JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_JOB_EXECUTION WHERE JOB_INSTANCE_ID=? ORDER BY JOB_EXECUTION_ID DESC", jobInstance.JobInstanceId)
 	if err != nil {
@@ -268,7 +269,7 @@ func findStepExecutionsByJobExecution(jobExecutionId int64) ([]*StepExecution, B
 	return results, nil
 }
 
-//find step execution by job_execution and step name
+// find step execution by job_execution and step name
 func findStepExecutionsByName(jobExecutionId int64, stepName string) (*StepExecution, BatchError) {
 	rows, err := db.Query("SELECT STEP_EXECUTION_ID, STEP_NAME, JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, COMMIT_COUNT, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_SKIP_COUNT, WRITE_SKIP_COUNT, PROCESS_SKIP_COUNT, ROLLBACK_COUNT, EXECUTION_CONTEXT, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_STEP_EXECUTION WHERE JOB_EXECUTION_ID=? AND STEP_NAME=? ORDER BY STEP_EXECUTION_ID DESC", jobExecutionId, stepName)
 	if err != nil {
@@ -283,7 +284,7 @@ func findStepExecutionsByName(jobExecutionId int64, stepName string) (*StepExecu
 	return nil, nil
 }
 
-//find last step execution by job instance and step name
+// find last step execution by job instance and step name
 func findLastStepExecution(jobInstanceId int64, stepName string) (*StepExecution, BatchError) {
 	rows, err := db.Query("SELECT STEP_EXECUTION_ID, STEP_NAME, JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, COMMIT_COUNT, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_SKIP_COUNT, WRITE_SKIP_COUNT, PROCESS_SKIP_COUNT, ROLLBACK_COUNT, EXECUTION_CONTEXT, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_STEP_EXECUTION WHERE JOB_INSTANCE_ID=? AND STEP_NAME=? ORDER BY CREATE_TIME DESC", jobInstanceId, stepName)
 	if err != nil {
@@ -298,7 +299,7 @@ func findLastStepExecution(jobInstanceId int64, stepName string) (*StepExecution
 	return nil, nil
 }
 
-//find last step execution by job instance and step name
+// find last step execution by job instance and step name
 func findLastCompleteStepExecution(jobInstanceId int64, stepName string) (*StepExecution, BatchError) {
 	rows, err := db.Query("SELECT STEP_EXECUTION_ID, STEP_NAME, JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, COMMIT_COUNT, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_SKIP_COUNT, WRITE_SKIP_COUNT, PROCESS_SKIP_COUNT, ROLLBACK_COUNT, EXECUTION_CONTEXT, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_STEP_EXECUTION WHERE JOB_INSTANCE_ID=? AND STEP_NAME=? AND STATUS=? ORDER BY CREATE_TIME DESC", jobInstanceId, stepName, status.COMPLETED)
 	if err != nil {
@@ -314,13 +315,13 @@ func findLastCompleteStepExecution(jobInstanceId int64, stepName string) (*StepE
 }
 
 func extractStepExecution(rows *sql.Rows) (*StepExecution, BatchError) {
-	//1. query step execution
+	// 1. query step execution
 	execution := &batchStepExecution{}
 	err := rows.Scan(&execution.StepExecutionId, &execution.StepName, &execution.JobExecutionId, &execution.JobInstanceId, &execution.JobName, &execution.CreateTime, &execution.StartTime, &execution.EndTime, &execution.Status, &execution.CommitCount, &execution.ReadCount, &execution.FilterCount, &execution.WriteCount, &execution.ReadSkipCount, &execution.WriteSkipCount, &execution.ProcessSkipCount, &execution.RollbackCount, &execution.ExecutionContext, &execution.ExitCode, &execution.ExitMessage, &execution.LastUpdated, &execution.Version)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeDbFail, "read step executions failed", err)
 	}
-	//2. query step context
+	// 2. query step context
 	batchStepCtx, er := findStepContext(execution.JobInstanceId, execution.StepName)
 	if er != nil {
 		return nil, er
@@ -328,7 +329,7 @@ func extractStepExecution(rows *sql.Rows) (*StepExecution, BatchError) {
 	if batchStepCtx == nil {
 		return nil, NewBatchError(ErrCodeGeneral, "can not find step context for step:%v", execution.StepName)
 	}
-	//3. construct step execution
+	// 3. construct step execution
 	stepContext := NewBatchContext()
 	if err = util.ParseJson(*batchStepCtx.StepContext, stepContext); err != nil {
 		return nil, NewBatchError(ErrCodeGeneral, "parse step context error", err)
@@ -364,7 +365,7 @@ func extractStepExecution(rows *sql.Rows) (*StepExecution, BatchError) {
 func saveStepExecution(ctx context.Context, execution *StepExecution) BatchError {
 	buff := bytes.NewBufferString("")
 	args := make([]interface{}, 0)
-	//1. save step context
+	// 1. save step context
 	if execution.StepContextId == 0 {
 		stepCtxJson, _ := util.JsonString(execution.StepContext)
 		stepContext := &batchStepContext{
@@ -378,7 +379,7 @@ func saveStepExecution(ctx context.Context, execution *StepExecution) BatchError
 		}
 		execution.StepContextId = stepContext.StepContextId
 	}
-	//2. save step execution
+	// 2. save step execution
 	if execution.StepExecutionId == 0 {
 		buff.WriteString("INSERT INTO BATCH_STEP_EXECUTION(STEP_NAME, JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, STATUS, COMMIT_COUNT, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_SKIP_COUNT, WRITE_SKIP_COUNT, PROCESS_SKIP_COUNT, ROLLBACK_COUNT, EXECUTION_CONTEXT, STEP_CONTEXT_ID, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION) VALUES")
 		buff.WriteString("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -396,7 +397,7 @@ func saveStepExecution(ctx context.Context, execution *StepExecution) BatchError
 		if err != nil {
 			return NewBatchError(ErrCodeDbFail, "save step execution to db failed", err)
 		}
-		//3. fill back step execution
+		// 3. fill back step execution
 		id, _ := res.LastInsertId()
 		if id > 0 {
 			execution.StepExecutionId = id
@@ -421,7 +422,7 @@ func saveStepExecution(ctx context.Context, execution *StepExecution) BatchError
 		}
 		execution.Version += 1
 	}
-	//3. check job status
+	// 3. check job status
 	stopping, err := checkJobStopping(execution.JobExecution)
 	if err != nil {
 		return err
@@ -465,9 +466,9 @@ func updateStepStatus(execution *StepExecution) BatchError {
 	return nil
 }
 
-//load or save step executions by instance
+// load or save step executions by instance
 
-//load or save step context
+// load or save step context
 func findStepContext(jobInstanceId int64, stepName string) (*batchStepContext, BatchError) {
 	rows, err := db.Query("SELECT STEP_CONTEXT_ID, JOB_INSTANCE_ID, STEP_NAME, STEP_CONTEXT, CREATE_TIME FROM BATCH_STEP_CONTEXT WHERE JOB_INSTANCE_ID=? AND STEP_NAME=?", jobInstanceId, stepName)
 	if err != nil {

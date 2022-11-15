@@ -2,19 +2,20 @@ package gobatch
 
 import (
 	"database/sql"
-	"github.com/chararch/gobatch/internal/logs"
 	"os"
+
+	"github.com/chararch/gobatch/internal/logs"
 )
 
-//log
+// log
 var logger logs.Logger = logs.NewLogger(os.Stdout, logs.Info)
 
-//SetLogger set a logger instance for GoBatch
+// SetLogger set a logger instance for GoBatch
 func SetLogger(l logs.Logger) {
 	logger = l
 }
 
-//task pool
+// task pool
 const (
 	DefaultJobPoolSize      = 10
 	DefaultStepTaskPoolSize = 1000
@@ -23,20 +24,20 @@ const (
 var jobPool = newTaskPool(DefaultJobPoolSize)
 var stepPool = newTaskPool(DefaultStepTaskPoolSize)
 
-//SetMaxRunningJobs set max number of parallel jobs for GoBatch
+// SetMaxRunningJobs set max number of parallel jobs for GoBatch
 func SetMaxRunningJobs(size int) {
 	jobPool.SetMaxSize(size)
 }
 
-//SetMaxRunningSteps set max number of parallel steps for GoBatch
+// SetMaxRunningSteps set max number of parallel steps for GoBatch
 func SetMaxRunningSteps(size int) {
 	stepPool.SetMaxSize(size)
 }
 
-//db
+// db
 var db *sql.DB
 
-//SetDB register a *sql.DB instance for GoBatch
+// SetDB register a *sql.DB instance for GoBatch
 func SetDB(sqlDb *sql.DB) {
 	if sqlDb == nil {
 		panic("sqlDb must not be nil")
@@ -47,10 +48,10 @@ func SetDB(sqlDb *sql.DB) {
 	}
 }
 
-//transaction manager
+// transaction manager
 var txManager TransactionManager
 
-//SetTransactionManager register a TransactionManager instance for GoBatch
+// SetTransactionManager register a TransactionManager instance for GoBatch
 func SetTransactionManager(txMgr TransactionManager) {
 	if txMgr == nil {
 		panic("transaction manager must not be nil")

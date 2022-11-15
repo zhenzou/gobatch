@@ -2,6 +2,7 @@ package gobatch
 
 import (
 	"encoding/json"
+
 	"github.com/pkg/errors"
 )
 
@@ -9,12 +10,12 @@ type batchContext struct {
 	kvs map[string]interface{}
 }
 
-//BatchContext contains properties during a job or step execution
+// BatchContext contains properties during a job or step execution
 type BatchContext struct {
 	ctx batchContext
 }
 
-//NewBatchContext new instance
+// NewBatchContext new instance
 func NewBatchContext() *BatchContext {
 	c := &BatchContext{
 		ctx: batchContext{

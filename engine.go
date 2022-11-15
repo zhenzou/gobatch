@@ -11,34 +11,52 @@ import (
 	"github.com/chararch/gobatch/util"
 )
 
-var jobRegistry = make(map[string]Job)
+type Engine interface {
+	Register(job Job) error
+	Unregister(job Job)
+	Start(ctx context.Context, jobName string, params string) (int64, error)
+	StartAsync(ctx context.Context, jobName string, params string) (int64, error)
+	Stop(ctx context.Context, jobId interface{}) error
+	Restart(ctx context.Context, jobId interface{}) (int64, error)
+	RestartAsync(ctx context.Context, jobId interface{}) (int64, error)
+}
+
+func NewEngine() Engine {
+	return &engine{
+		jobRegistry: map[string]Job{},
+	}
+}
+
+type engine struct {
+	jobRegistry map[string]Job
+}
 
 // Register register job to gobatch
-func Register(job Job) error {
-	if _, ok := jobRegistry[job.Name()]; ok {
+func (e *engine) Register(job Job) error {
+	if _, ok := e.jobRegistry[job.Name()]; ok {
 		return fmt.Errorf("job with name:%v has already been registered", job.Name())
 	}
-	jobRegistry[job.Name()] = job
+	e.jobRegistry[job.Name()] = job
 	return nil
 }
 
 // Unregister unregister job to gobatch
-func Unregister(job Job) {
-	delete(jobRegistry, job.Name())
+func (e *engine) Unregister(job Job) {
+	delete(e.jobRegistry, job.Name())
 }
 
 // Start start job by job name and params
-func Start(ctx context.Context, jobName string, params string) (int64, error) {
+func (e *engine) Start(ctx context.Context, jobName string, params string) (int64, error) {
 	return doStart(ctx, jobName, params, false)
 }
 
 // StartAsync start job by job name and params asynchronously
-func StartAsync(ctx context.Context, jobName string, params string) (int64, error) {
+func (e *engine) StartAsync(ctx context.Context, jobName string, params string) (int64, error) {
 	return doStart(ctx, jobName, params, true)
 }
 
-func doStart(ctx context.Context, jobName string, params string, async bool) (int64, error) {
-	if job, ok := jobRegistry[jobName]; ok {
+func (e *engine) doStart(ctx context.Context, jobName string, params string, async bool) (int64, error) {
+	if job, ok := e.jobRegistry[jobName]; ok {
 		jobParams, err := parseJobParams(params)
 		if err != nil {
 			logger.Error(ctx, "parse job params error, jobName:%v, params:%v, err:%v", jobName, params, err)
@@ -116,23 +134,11 @@ func doStart(ctx context.Context, jobName string, params string, async bool) (in
 	}
 }
 
-func parseJobParams(params string) (map[string]interface{}, error) {
-	ret := make(map[string]interface{})
-	if len(params) == 0 {
-		return ret, nil
-	}
-	err := util.ParseJson(params, &ret)
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
-
 // Stop stop job by job name or job execution id
-func Stop(ctx context.Context, jobId interface{}) error {
+func (e *engine) Stop(ctx context.Context, jobId interface{}) error {
 	switch id := jobId.(type) {
 	case string:
-		if job, ok := jobRegistry[id]; ok {
+		if job, ok := e.jobRegistry[id]; ok {
 			// find executions by jobName, then stop
 			jobInstance, err := findLastJobInstanceByName(job.Name())
 			if err != nil {
@@ -171,7 +177,7 @@ func Stop(ctx context.Context, jobId interface{}) error {
 			logger.Error(ctx, "can not find job execution with execution id:%v", id)
 			return errors.Errorf("can not find job execution with execution id:%v", id)
 		}
-		if job, ok := jobRegistry[execution.JobName]; ok {
+		if job, ok := e.jobRegistry[execution.JobName]; ok {
 			return job.Stop(ctx, execution)
 		} else {
 			logger.Error(ctx, "can not find job with name:%v", execution.JobName)
@@ -183,20 +189,20 @@ func Stop(ctx context.Context, jobId interface{}) error {
 }
 
 // Restart restart job by job name or job execution id
-func Restart(ctx context.Context, jobId interface{}) (int64, error) {
+func (e *engine) Restart(ctx context.Context, jobId interface{}) (int64, error) {
 	return doRestart(ctx, jobId, false)
 }
 
 // RestartAsync restart job by job name or job execution id asynchronously
-func RestartAsync(ctx context.Context, jobId interface{}) (int64, error) {
+func (e *engine) RestartAsync(ctx context.Context, jobId interface{}) (int64, error) {
 	return doRestart(ctx, jobId, true)
 }
 
-func doRestart(ctx context.Context, jobId interface{}, async bool) (int64, error) {
+func (e *engine) doRestart(ctx context.Context, jobId interface{}, async bool) (int64, error) {
 	// find executions, ensure no running instance and then start
 	switch id := jobId.(type) {
 	case string:
-		if job, ok := jobRegistry[id]; ok {
+		if job, ok := e.jobRegistry[id]; ok {
 			// find executions by jobName, if count==1 then stop
 			jobInstance, err := findLastJobInstanceByName(job.Name())
 			if err != nil {
@@ -222,7 +228,7 @@ func doRestart(ctx context.Context, jobId interface{}, async bool) (int64, error
 			logger.Error(ctx, "can not find job execution with execution id:%v", id)
 			return -1, errors.Errorf("can not find job execution with execution id:%v", id)
 		}
-		if job, ok := jobRegistry[execution.JobName]; ok {
+		if job, ok := e.jobRegistry[execution.JobName]; ok {
 			params, _ := util.JsonString(execution.JobParams)
 			return doStart(ctx, job.Name(), params, async)
 		}
