@@ -44,19 +44,19 @@ func doStart(ctx context.Context, jobName string, params string, async bool) (in
 			logger.Error(ctx, "parse job params error, jobName:%v, params:%v, err:%v", jobName, params, err)
 			return -1, err
 		}
-		jobInstance, err := findJobInstance(jobName, jobParams)
+		jobInstance, err := FindJobInstance(jobName, jobParams)
 		if err != nil {
 			logger.Error(ctx, "find JobInstance error, jobName:%v, params:%v, err:%v", jobName, params, err)
 			return -1, err
 		}
 		if jobInstance == nil {
-			jobInstance, err = createJobInstance(jobName, jobParams)
+			jobInstance, err = CreateJobInstance(jobName, jobParams)
 			if err != nil {
 				logger.Error(ctx, "find JobInstance error, jobName:%v, params:%v, err:%v", jobName, params, err)
 				return -1, err
 			}
 		}
-		jobExecution, err := findLastJobExecutionByInstance(jobInstance)
+		jobExecution, err := FindLastJobExecutionByInstance(jobInstance)
 		if err != nil {
 			logger.Error(ctx, "find last JobExecution error, jobName:%v, jobInstanceId:%v, err:%v", jobName, jobInstance.JobInstanceId, err)
 			return -1, err
@@ -69,7 +69,7 @@ func doStart(ctx context.Context, jobName string, params string, async bool) (in
 				return -1, errors.Errorf("the job is in executing or exit from last execution abnormally, can not restart, jobName:%v, status:%v", jobName, jobStatus)
 			}
 			// find step executions & check step execution status
-			stepExecutions, err := findStepExecutionsByJobExecution(lastExecution.JobExecutionId)
+			stepExecutions, err := FindStepExecutionsByJobExecution(lastExecution.JobExecutionId)
 			if err != nil {
 				logger.Error(ctx, "find last StepExecution error, jobName:%v, jobExecutionId:%v, err:%v", jobName, lastExecution.JobExecutionId, err)
 				return -1, err
@@ -91,7 +91,7 @@ func doStart(ctx context.Context, jobName string, params string, async bool) (in
 			JobContext:     NewBatchContext(),
 			CreateTime:     time.Now(),
 		}
-		err = saveJobExecution(execution)
+		err = SaveJobExecution(execution)
 		if err != nil {
 			logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", jobName, execution, err)
 			return -1, err
@@ -134,13 +134,13 @@ func Stop(ctx context.Context, jobId interface{}) error {
 	case string:
 		if job, ok := jobRegistry[id]; ok {
 			// find executions by jobName, then stop
-			jobInstance, err := findLastJobInstanceByName(job.Name())
+			jobInstance, err := FindLastJobInstanceByName(job.Name())
 			if err != nil {
 				logger.Error(ctx, "find last JobInstance error, jobName:%v, err:%v", job.Name(), err)
 				return err
 			}
 			if jobInstance != nil {
-				execution, err := findLastJobExecutionByInstance(jobInstance)
+				execution, err := FindLastJobExecutionByInstance(jobInstance)
 				if err != nil {
 					logger.Error(ctx, "find last JobExecution error, jobName:%v, jobInstanceId:%v, err:%v", job.Name(), jobInstance.JobInstanceId, err)
 					return err
@@ -162,7 +162,7 @@ func Stop(ctx context.Context, jobId interface{}) error {
 		}
 	case int64:
 		// find executions by execution id, if found then stop
-		execution, err := findJobExecution(id)
+		execution, err := FindJobExecution(id)
 		if err != nil {
 			logger.Error(ctx, "find JobExecution by jobExecutionId error, jobExecutionId:%v, err:%v", id, err)
 			return err
@@ -198,7 +198,7 @@ func doRestart(ctx context.Context, jobId interface{}, async bool) (int64, error
 	case string:
 		if job, ok := jobRegistry[id]; ok {
 			// find executions by jobName, if count==1 then stop
-			jobInstance, err := findLastJobInstanceByName(job.Name())
+			jobInstance, err := FindLastJobInstanceByName(job.Name())
 			if err != nil {
 				logger.Error(ctx, "find last JobInstance error, jobName:%v, err:%v", job.Name(), err)
 				return -1, err
@@ -213,7 +213,7 @@ func doRestart(ctx context.Context, jobId interface{}, async bool) (int64, error
 		return -1, errors.Errorf("can not find job with name:%v", id)
 	case int64:
 		// find executions by execution id, then start
-		execution, err := findJobExecution(id)
+		execution, err := FindJobExecution(id)
 		if err != nil {
 			logger.Error(ctx, "find JobExecution by jobExecutionId error, jobExecutionId:%v, err:%v", id, err)
 			return -1, err

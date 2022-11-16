@@ -2,13 +2,14 @@ package gobatch
 
 import (
 	"context"
-	"github.com/chararch/gobatch/status"
 	"reflect"
 	"runtime/debug"
 	"time"
+
+	"github.com/chararch/gobatch/status"
 )
 
-//Job job interface used by GoBatch
+// Job job interface used by GoBatch
 type Job interface {
 	Name() string
 	Start(ctx context.Context, execution *JobExecution) BatchError
@@ -47,7 +48,7 @@ func (job *simpleJob) Start(ctx context.Context, execution *JobExecution) (err B
 			execution.FailError = err
 			execution.EndTime = time.Now()
 		}
-		if err = saveJobExecution(execution); err != nil {
+		if err = SaveJobExecution(execution); err != nil {
 			logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", job.name, execution, err)
 		}
 	}()
@@ -64,7 +65,7 @@ func (job *simpleJob) Start(ctx context.Context, execution *JobExecution) (err B
 	}
 	execution.JobStatus = status.STARTED
 	execution.StartTime = time.Now()
-	if err = saveJobExecution(execution); err != nil {
+	if err = SaveJobExecution(execution); err != nil {
 		logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", job.name, execution, err)
 		return err
 	}
@@ -107,7 +108,7 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 			logger.Error(ctx, "error in step executing, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), err)
 		}
 	}()
-	lastStepExecution, er := findLastStepExecution(execution.JobInstanceId, step.Name())
+	lastStepExecution, er := FindLastStepExecution(execution.JobInstanceId, step.Name())
 	if er != nil {
 		err = er
 		logger.Error(ctx, "find last StepExecution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), er)
@@ -134,7 +135,7 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 		stepExecution.StepContextId = lastStepExecution.StepContextId
 		stepExecution.StepExecutionContext.Merge(lastStepExecution.StepExecutionContext)
 	}
-	e := saveStepExecution(ctx, stepExecution)
+	e := SaveStepExecution(ctx, stepExecution)
 	if e != nil {
 		logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
 		err = e
@@ -154,7 +155,7 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 		execution.JobStatus = status.FAILED
 		execution.FailError = err
 		execution.EndTime = time.Now()
-		e = saveStepExecution(ctx, stepExecution)
+		e = SaveStepExecution(ctx, stepExecution)
 		if e != nil {
 			logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
 			err = e
@@ -163,7 +164,7 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 	} else {
 		stepExecution.StepStatus = status.COMPLETED
 		stepExecution.EndTime = time.Now()
-		e = saveStepExecution(ctx, stepExecution)
+		e = SaveStepExecution(ctx, stepExecution)
 		if e != nil {
 			logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
 			err = e
@@ -177,7 +178,7 @@ func (job *simpleJob) Stop(ctx context.Context, execution *JobExecution) BatchEr
 	logger.Info(ctx, "stop job, jobName:%v, jobExecutionId:%v, jobStatus:%v", job.name, execution.JobExecutionId, execution.JobStatus)
 	execution.JobStatus = status.STOPPING
 	execution.EndTime = time.Now()
-	return saveJobExecution(execution)
+	return SaveJobExecution(execution)
 }
 
 func (job *simpleJob) GetSteps() []Step {

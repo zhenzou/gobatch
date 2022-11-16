@@ -3,11 +3,12 @@ package gobatch
 import (
 	"context"
 	"fmt"
-	"github.com/chararch/gobatch/status"
-	"github.com/chararch/gobatch/util"
 	"reflect"
 	"runtime/debug"
 	"time"
+
+	"github.com/chararch/gobatch/status"
+	"github.com/chararch/gobatch/util"
 )
 
 // Step step interface
@@ -71,7 +72,7 @@ func (step *simpleStep) Exec(ctx context.Context, execution *StepExecution) (err
 		}
 	}
 	execution.start()
-	e := saveStepExecution(ctx, execution)
+	e := SaveStepExecution(ctx, execution)
 	if e != nil {
 		logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, StepExecution:%+v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, execution, e)
 		err = e
@@ -117,8 +118,8 @@ func execEnd(ctx context.Context, execution *StepExecution, err BatchError, reco
 		execution.EndTime = time.Now()
 	}
 	for i := 0; i < 3; i++ {
-		e := saveStepExecution(ctx, execution)
-		if e != nil && (e.Code() == ErrCodeDbFail || e.Code() == ErrCodeConcurrency) { //retry
+		e := SaveStepExecution(ctx, execution)
+		if e != nil && (e.Code() == ErrCodeDbFail || e.Code() == ErrCodeConcurrency) { // retry
 			logger.Error(ctx, "save step execution failed and retry for recoverable err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
 			continue
 		}
@@ -196,7 +197,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 		}
 	}
 	execution.start()
-	e := saveStepExecution(ctx, execution)
+	e := SaveStepExecution(ctx, execution)
 	if e != nil {
 		err = e
 		logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
@@ -245,7 +246,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 			}
 			execution.RollbackCount++
 			err = txErr
-			e := saveStepExecution(ctx, execution)
+			e := SaveStepExecution(ctx, execution)
 			if e != nil {
 				err = e
 				logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, execution:%+v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, execution, e)
@@ -256,7 +257,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 			execution.WriteCount += int64(len(output.items))
 			execution.FilterCount += int64(len(input.skipItems))
 			execution.CommitCount++
-			e := saveStepExecution(ctx, execution)
+			e := SaveStepExecution(ctx, execution)
 			if e != nil {
 				err = e
 				logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
@@ -446,7 +447,7 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 		}
 	}
 	execution.start()
-	e := saveStepExecution(ctx, execution)
+	e := SaveStepExecution(ctx, execution)
 	if e != nil {
 		err = e
 		logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
@@ -475,14 +476,14 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 			return err
 		}
 	}
-	e = saveStepExecution(ctx, execution)
+	e = SaveStepExecution(ctx, execution)
 	if e != nil {
 		err = e
 		logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
 		return err
 	}
 	for _, subExecution := range subExecutions {
-		e = saveStepExecution(ctx, subExecution)
+		e = SaveStepExecution(ctx, subExecution)
 		if e != nil {
 			err = e
 			logger.Error(ctx, "save sub-step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, subExecution.StepName, e)
@@ -515,19 +516,19 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 			}
 			logger.Info(ctx, "sub-step execute finish, jobExecutionId:%v, sub-step name:%v, sub-step status:%v", subExecutions[i].JobExecution.JobExecutionId, subExecutions[i].StepName, subExecutions[i].StepStatus)
 		}
-		e := saveStepExecution(ctx, subExecutions[i])
+		e := SaveStepExecution(ctx, subExecutions[i])
 		if e != nil {
 			err = e
 			logger.Error(ctx, "save sub-step execution failed, jobExecutionId:%v, stepName:%v, err:%v", subExecutions[i].JobExecution.JobExecutionId, subExecutions[i].StepName, e)
 		}
 		stepStatus = stepStatus.And(subExecutions[i].StepStatus)
 	}
-	//aggregate
+	// aggregate
 	if stepStatus == status.COMPLETED && step.aggregator != nil {
 		partitionNames := step.partitioner.GetPartitionNames(execution, step.partitions)
 		allSubExecutions := make([]*StepExecution, 0)
 		for _, partitionName := range partitionNames {
-			subExecution, err := findLastCompleteStepExecution(execution.JobExecution.JobInstanceId, partitionName)
+			subExecution, err := FindLastCompleteStepExecution(execution.JobExecution.JobInstanceId, partitionName)
 			if err != nil {
 				return err
 			}
@@ -567,7 +568,7 @@ func (step *partitionStep) split(ctx context.Context, execution *StepExecution, 
 		partitionNames := step.partitioner.GetPartitionNames(execution, uint(savedPartitions))
 		missingPartition := false
 		for _, partitionName := range partitionNames {
-			lastStepExecution, err := findLastStepExecution(execution.JobExecution.JobInstanceId, partitionName)
+			lastStepExecution, err := FindLastStepExecution(execution.JobExecution.JobInstanceId, partitionName)
 			if err != nil {
 				return nil, err
 			}
@@ -582,10 +583,10 @@ func (step *partitionStep) split(ctx context.Context, execution *StepExecution, 
 				if lastStepExecution.StepContextId != 0 {
 					subExecution := lastStepExecution.deepCopy()
 					subExecution.StepContextId = lastStepExecution.StepContextId
-					//subExecution.StepName = partitionName
-					//subExecution.StepContext.Put(ItemReaderKeyList, lastStepExecution.StepContext.Get(ItemReaderKeyList))
-					//subExecution.StepExecutionContext.Put(ItemReaderCurrentIndex, lastStepExecution.StepExecutionContext.Get(ItemReaderCurrentIndex))
-					//subExecution.StepExecutionContext.Put(ItemReaderMaxIndex, lastStepExecution.StepExecutionContext.Get(ItemReaderMaxIndex))
+					// subExecution.StepName = partitionName
+					// subExecution.StepContext.Put(ItemReaderKeyList, lastStepExecution.StepContext.Get(ItemReaderKeyList))
+					// subExecution.StepExecutionContext.Put(ItemReaderCurrentIndex, lastStepExecution.StepExecutionContext.Get(ItemReaderCurrentIndex))
+					// subExecution.StepExecutionContext.Put(ItemReaderMaxIndex, lastStepExecution.StepExecutionContext.Get(ItemReaderMaxIndex))
 					subExecution.JobExecution = execution.JobExecution
 					subExecutions = append(subExecutions, subExecution)
 				} else {
