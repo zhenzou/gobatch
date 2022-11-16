@@ -10,73 +10,8 @@ import (
 	"github.com/chararch/gobatch/util"
 )
 
-type batchJobInstance struct {
-	JobInstanceId int64
-	JobName       string
-	JobKey        string
-	JobParams     string
-	CreateTime    time.Time
-}
-
-type batchJobExecution struct {
-	JobExecutionId int64
-	JobInstanceId  int64
-	JobName        string
-	CreateTime     time.Time
-	StartTime      time.Time
-	EndTime        time.Time
-	Status         string
-	ExitCode       string
-	ExitMessage    *string
-	LastUpdated    time.Time
-	Version        int64
-}
-
-type batchJobContext struct {
-	ContextId     int64
-	JobInstanceId int64
-	JobName       string
-	JobContext    *string
-	CreateTime    time.Time
-}
-
-type batchStepExecution struct {
-	StepExecutionId  int64
-	JobExecutionId   int64
-	JobInstanceId    int64
-	JobName          string
-	StepName         string
-	CreateTime       time.Time
-	StartTime        time.Time
-	EndTime          time.Time
-	Status           string
-	ReadCount        int64
-	WriteCount       int64
-	CommitCount      int64
-	FilterCount      int64
-	ReadSkipCount    int64
-	WriteSkipCount   int64
-	ProcessSkipCount int64
-	RollbackCount    int64
-	ExecutionContext string
-	StepContextId    int64
-	ExitCode         string
-	ExitMessage      *string
-	LastUpdated      time.Time
-	Version          int64
-}
-
-type batchStepContext struct {
-	StepContextId int64
-	JobInstanceId int64
-	StepName      string
-	StepContext   *string
-	CreateTime    time.Time
-	LastUpdated   time.Time
-}
-
 // load or save job instance by name & parameters
-func findJobInstance(jobName string, params map[string]interface{}) (*batchJobInstance, BatchError) {
+func findJobInstance(jobName string, params map[string]interface{}) (*BatchJobInstance, BatchError) {
 	str, err := util.JsonString(params)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeGeneral, "jsonify job params failed", err)
@@ -89,7 +24,7 @@ func findJobInstance(jobName string, params map[string]interface{}) (*batchJobIn
 	defer rows.Close()
 
 	for rows.Next() {
-		inst := &batchJobInstance{}
+		inst := &BatchJobInstance{}
 		err = rows.Scan(&inst.JobInstanceId, &inst.JobName, &inst.JobKey, &inst.JobParams, &inst.CreateTime)
 		if err != nil {
 			return nil, NewBatchError(ErrCodeDbFail, "read job instance failed", err)
@@ -99,7 +34,7 @@ func findJobInstance(jobName string, params map[string]interface{}) (*batchJobIn
 	return nil, nil
 }
 
-func findLastJobInstanceByName(jobName string) (*batchJobInstance, BatchError) {
+func findLastJobInstanceByName(jobName string) (*BatchJobInstance, BatchError) {
 	rows, err := db.Query("SELECT JOB_INSTANCE_ID, JOB_NAME, JOB_KEY, JOB_PARAMS, CREATE_TIME FROM BATCH_JOB_INSTANCE WHERE JOB_NAME=? ORDER BY JOB_INSTANCE_ID DESC", jobName)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeDbFail, "query job instance from db failed", err)
@@ -107,7 +42,7 @@ func findLastJobInstanceByName(jobName string) (*batchJobInstance, BatchError) {
 	defer rows.Close()
 
 	if rows.Next() {
-		inst := &batchJobInstance{}
+		inst := &BatchJobInstance{}
 		err = rows.Scan(&inst.JobInstanceId, &inst.JobName, &inst.JobKey, &inst.JobParams, &inst.CreateTime)
 		if err != nil {
 			return nil, NewBatchError(ErrCodeDbFail, "read job instance failed", err)
@@ -117,13 +52,13 @@ func findLastJobInstanceByName(jobName string) (*batchJobInstance, BatchError) {
 	return nil, nil
 }
 
-func createJobInstance(jobName string, jobParams map[string]interface{}) (*batchJobInstance, BatchError) {
+func createJobInstance(jobName string, jobParams map[string]interface{}) (*BatchJobInstance, BatchError) {
 	str, err := util.JsonString(jobParams)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeGeneral, "jsonify job params failed", err)
 	}
 	key := util.MD5(str)
-	jobInstance := &batchJobInstance{
+	jobInstance := &BatchJobInstance{
 		JobName:    jobName,
 		JobKey:     key,
 		JobParams:  str,
@@ -141,7 +76,7 @@ func createJobInstance(jobName string, jobParams map[string]interface{}) (*batch
 }
 
 // load or save job executions by instance
-func findLastJobExecutionByInstance(jobInstance *batchJobInstance) (*JobExecution, BatchError) {
+func findLastJobExecutionByInstance(jobInstance *BatchJobInstance) (*JobExecution, BatchError) {
 	rows, err := db.Query("SELECT JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_JOB_EXECUTION WHERE JOB_INSTANCE_ID=? ORDER BY JOB_EXECUTION_ID DESC", jobInstance.JobInstanceId)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeDbFail, "query job executions from db failed", err)
@@ -150,7 +85,7 @@ func findLastJobExecutionByInstance(jobInstance *batchJobInstance) (*JobExecutio
 
 	jobParams, _ := parseJobParams(jobInstance.JobParams)
 	if rows.Next() {
-		execution := &batchJobExecution{}
+		execution := &BatchJobExecution{}
 		err = rows.Scan(&execution.JobExecutionId, &execution.JobInstanceId, &execution.JobName, &execution.CreateTime, &execution.StartTime, &execution.EndTime, &execution.Status, &execution.ExitCode, &execution.ExitMessage, &execution.LastUpdated, &execution.Version)
 		if err != nil {
 			return nil, NewBatchError(ErrCodeDbFail, "read job executions failed", err)
@@ -179,7 +114,7 @@ func findJobExecution(jobExecutionId int64) (*JobExecution, BatchError) {
 	defer rows.Close()
 
 	if rows.Next() {
-		execution := &batchJobExecution{}
+		execution := &BatchJobExecution{}
 		err = rows.Scan(&execution.JobExecutionId, &execution.JobInstanceId, &execution.JobName, &execution.CreateTime, &execution.StartTime, &execution.EndTime, &execution.Status, &execution.ExitCode, &execution.ExitMessage, &execution.LastUpdated, &execution.Version)
 		if err != nil {
 			return nil, NewBatchError(ErrCodeDbFail, "read job executions failed", err)
@@ -316,7 +251,7 @@ func findLastCompleteStepExecution(jobInstanceId int64, stepName string) (*StepE
 
 func extractStepExecution(rows *sql.Rows) (*StepExecution, BatchError) {
 	// 1. query step execution
-	execution := &batchStepExecution{}
+	execution := &BatchStepExecution{}
 	err := rows.Scan(&execution.StepExecutionId, &execution.StepName, &execution.JobExecutionId, &execution.JobInstanceId, &execution.JobName, &execution.CreateTime, &execution.StartTime, &execution.EndTime, &execution.Status, &execution.CommitCount, &execution.ReadCount, &execution.FilterCount, &execution.WriteCount, &execution.ReadSkipCount, &execution.WriteSkipCount, &execution.ProcessSkipCount, &execution.RollbackCount, &execution.ExecutionContext, &execution.ExitCode, &execution.ExitMessage, &execution.LastUpdated, &execution.Version)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeDbFail, "read step executions failed", err)
@@ -368,7 +303,7 @@ func saveStepExecution(ctx context.Context, execution *StepExecution) BatchError
 	// 1. save step context
 	if execution.StepContextId == 0 {
 		stepCtxJson, _ := util.JsonString(execution.StepContext)
-		stepContext := &batchStepContext{
+		stepContext := &BatchStepContext{
 			JobInstanceId: execution.JobExecution.JobInstanceId,
 			StepName:      execution.StepName,
 			StepContext:   &stepCtxJson,
@@ -469,7 +404,7 @@ func updateStepStatus(execution *StepExecution) BatchError {
 // load or save step executions by instance
 
 // load or save step context
-func findStepContext(jobInstanceId int64, stepName string) (*batchStepContext, BatchError) {
+func findStepContext(jobInstanceId int64, stepName string) (*BatchStepContext, BatchError) {
 	rows, err := db.Query("SELECT STEP_CONTEXT_ID, JOB_INSTANCE_ID, STEP_NAME, STEP_CONTEXT, CREATE_TIME FROM BATCH_STEP_CONTEXT WHERE JOB_INSTANCE_ID=? AND STEP_NAME=?", jobInstanceId, stepName)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeDbFail, "query step context from db failed", err)
@@ -477,7 +412,7 @@ func findStepContext(jobInstanceId int64, stepName string) (*batchStepContext, B
 	defer rows.Close()
 
 	if rows.Next() {
-		stepCtx := &batchStepContext{}
+		stepCtx := &BatchStepContext{}
 		err = rows.Scan(&stepCtx.StepContextId, &stepCtx.JobInstanceId, &stepCtx.StepName, &stepCtx.StepContext, &stepCtx.CreateTime)
 		if err != nil {
 			return nil, NewBatchError(ErrCodeDbFail, "read step context failed", err)
@@ -487,7 +422,7 @@ func findStepContext(jobInstanceId int64, stepName string) (*batchStepContext, B
 	return nil, nil
 }
 
-func saveStepContexts(stepCtx *batchStepContext) BatchError {
+func saveStepContexts(stepCtx *BatchStepContext) BatchError {
 	buff := bytes.NewBufferString("")
 	args := make([]interface{}, 0)
 	if stepCtx.StepContextId == 0 {

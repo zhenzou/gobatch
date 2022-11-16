@@ -1,22 +1,22 @@
 package status
 
-//BatchStatus status of job or step execution
+// BatchStatus status of job or step execution
 type BatchStatus string
 
 const (
-	//STARTING represent beginning of a job or step execution
+	// STARTING represent beginning of a job or step execution
 	STARTING BatchStatus = "STARTING"
-	//STARTED job or step have been started and is running
+	// STARTED job or step have been started and is running
 	STARTED BatchStatus = "STARTED"
-	//STOPPING job or step to be stopped
+	// STOPPING job or step to be stopped
 	STOPPING BatchStatus = "STOPPING"
-	//STOPPED job or step have been stopped
+	// STOPPED job or step have been stopped
 	STOPPED BatchStatus = "STOPPED"
-	//COMPLETED job or step have finished successfully
+	// COMPLETED job or step have finished successfully
 	COMPLETED BatchStatus = "COMPLETED"
-	//FAILED job or step have failed
+	// FAILED job or step have failed
 	FAILED BatchStatus = "FAILED"
-	//UNKNOWN job or step have aborted due to unknown reason
+	// UNKNOWN job or step have aborted due to unknown reason
 	UNKNOWN BatchStatus = "UNKNOWN"
 )
 

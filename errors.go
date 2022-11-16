@@ -2,25 +2,27 @@ package gobatch
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
+
+	"github.com/pkg/errors"
 )
 
-//BatchError represent an error during GoBatch executing
+// BatchError represent an error during GoBatch executing
 type BatchError interface {
-	//Code code of the error
+	// Code code of the error
 	Code() string
-	//Message readable message of the error
+	// Message readable message of the error
 	Message() string
-	//Error error interface
+	// Error error interface
 	Error() string
-	//StackTrace goroutine stack trace
+	// StackTrace goroutine stack trace
 	StackTrace() string
 }
 
 type stackTracer interface {
 	StackTrace() errors.StackTrace
 }
+
 type causer interface {
 	Cause() error
 }
@@ -77,7 +79,7 @@ func (err *batchError) Format(s fmt.State, verb rune) {
 	}
 }
 
-//NewBatchError new instance
+// NewBatchError new instance
 func NewBatchError(code string, msg string, args ...interface{}) BatchError {
 	var err error
 	if len(args) > 0 {
@@ -99,14 +101,14 @@ func NewBatchError(code string, msg string, args ...interface{}) BatchError {
 }
 
 const (
-	//ErrCodeRetry an error indicating the caller should retry
+	// ErrCodeRetry an error indicating the caller should retry
 	ErrCodeRetry = "retry"
-	//ErrCodeStop an error indicating the job is to be stopped
+	// ErrCodeStop an error indicating the job is to be stopped
 	ErrCodeStop = "stop"
-	//ErrCodeConcurrency an error indicating conflict modification
+	// ErrCodeConcurrency an error indicating conflict modification
 	ErrCodeConcurrency = "concurrency"
-	//ErrCodeDbFail an error indicating database access failed
+	// ErrCodeDbFail an error indicating database access failed
 	ErrCodeDbFail = "db_fail"
-	//ErrCodeGeneral general error
+	// ErrCodeGeneral general error
 	ErrCodeGeneral = "general"
 )
