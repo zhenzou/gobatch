@@ -7,7 +7,6 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/chararch/gobatch/status"
 	"github.com/chararch/gobatch/util"
 )
 
@@ -107,13 +106,13 @@ func (step *simpleStep) Exec(ctx context.Context, execution *StepExecution) (err
 func execEnd(ctx context.Context, execution *StepExecution, err BatchError, recoverErr interface{}) BatchError {
 	if recoverErr != nil {
 		_logger.Error(ctx, "panic in step executing, jobExecutionId:%v, stepName:%v, err:%v, stack:%v", execution.JobExecution.JobExecutionId, execution.StepName, recoverErr, string(debug.Stack()))
-		execution.StepStatus = status.FAILED
+		execution.StepStatus = FAILED
 		execution.FailError = NewBatchError(ErrCodeGeneral, "panic in step execution", recoverErr)
 		execution.EndTime = time.Now()
 	}
-	if err != nil && execution.StepStatus != status.FAILED && execution.StepStatus != status.UNKNOWN {
+	if err != nil && execution.StepStatus != FAILED && execution.StepStatus != UNKNOWN {
 		_logger.Error(ctx, "step executing error, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, err)
-		execution.StepStatus = status.FAILED
+		execution.StepStatus = FAILED
 		execution.FailError = err
 		execution.EndTime = time.Now()
 	}
@@ -268,7 +267,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 	execution.finish(err)
 	for _, listener := range step.listeners {
 		err = listener.AfterStep(execution)
-		if err != nil && execution.StepStatus != status.FAILED {
+		if err != nil && execution.StepStatus != FAILED {
 			_logger.Error(ctx, "step listener executing error, jobExecutionId:%v, stepName:%v, listener:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, reflect.TypeOf(listener).String(), err)
 			execution.finish(err)
 			break
@@ -502,16 +501,16 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 		fu := step.taskPool.Submit(ctx, task)
 		futures = append(futures, fu)
 	}
-	stepStatus := status.COMPLETED
+	stepStatus := COMPLETED
 	for i, fu := range futures {
 		_, err2 := fu.Get()
 		if err2 != nil {
 			_logger.Error(ctx, "sub-step execute failed, jobExecutionId:%v, sub-step name:%v, err:%v", subExecutions[i].JobExecution.JobExecutionId, subExecutions[i].StepName, err2)
-			if subExecutions[i].StepStatus != status.FAILED {
+			if subExecutions[i].StepStatus != FAILED {
 				subExecutions[i].finish(NewBatchError(ErrCodeGeneral, "sub-step execution error", err2))
 			}
 		} else {
-			if subExecutions[i].StepStatus == status.STARTED {
+			if subExecutions[i].StepStatus == STARTED {
 				subExecutions[i].finish(nil)
 			}
 			_logger.Info(ctx, "sub-step execute finish, jobExecutionId:%v, sub-step name:%v, sub-step status:%v", subExecutions[i].JobExecution.JobExecutionId, subExecutions[i].StepName, subExecutions[i].StepStatus)
@@ -524,7 +523,7 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 		stepStatus = stepStatus.And(subExecutions[i].StepStatus)
 	}
 	// aggregate
-	if stepStatus == status.COMPLETED && step.aggregator != nil {
+	if stepStatus == COMPLETED && step.aggregator != nil {
 		partitionNames := step.partitioner.GetPartitionNames(execution, step.partitions)
 		allSubExecutions := make([]*StepExecution, 0)
 		for _, partitionName := range partitionNames {
@@ -536,7 +535,7 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 		}
 		err = step.aggregator.Aggregate(execution, allSubExecutions)
 		if err != nil {
-			stepStatus = status.FAILED
+			stepStatus = FAILED
 			_logger.Error(ctx, "aggregate sub-step error, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, err)
 		} else {
 			_logger.Info(ctx, "aggregate sub-step finish, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
@@ -573,11 +572,11 @@ func (step *partitionStep) split(ctx context.Context, execution *StepExecution, 
 				return nil, err
 			}
 			if lastStepExecution != nil {
-				if util.In(lastStepExecution.StepStatus, []interface{}{status.STARTING, status.STARTED, status.STOPPING, status.UNKNOWN}) {
+				if util.In(lastStepExecution.StepStatus, []interface{}{STARTING, STARTED, STOPPING, UNKNOWN}) {
 					_logger.Error(ctx, "last StepExecution is in progress or terminated abnormally, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
 					return nil, NewBatchError(ErrCodeGeneral, "last StepExecution is in progress or terminated abnormally, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
 				}
-				if lastStepExecution.StepStatus == status.COMPLETED {
+				if lastStepExecution.StepStatus == COMPLETED {
 					continue
 				}
 				if lastStepExecution.StepContextId != 0 {

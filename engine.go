@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/chararch/gobatch/status"
 	"github.com/chararch/gobatch/util"
 )
 
@@ -84,7 +83,7 @@ func (e *engine) doStart(ctx context.Context, jobName string, params string, asy
 		if jobExecution != nil {
 			lastExecution := jobExecution
 			jobStatus := lastExecution.JobStatus
-			if jobStatus == status.STARTING || jobStatus == status.STARTED || jobStatus == status.STOPPING || jobStatus == status.UNKNOWN {
+			if jobStatus == STARTING || jobStatus == STARTED || jobStatus == STOPPING || jobStatus == UNKNOWN {
 				_logger.Error(ctx, "the job is in executing or exit from last execution abnormally, can not restart, jobName:%v, status:%v", jobName, jobStatus)
 				return -1, errors.Errorf("the job is in executing or exit from last execution abnormally, can not restart, jobName:%v, status:%v", jobName, jobStatus)
 			}
@@ -95,7 +94,7 @@ func (e *engine) doStart(ctx context.Context, jobName string, params string, asy
 				return -1, err
 			}
 			for _, stepExecution := range stepExecutions {
-				if stepExecution.StepStatus == status.UNKNOWN {
+				if stepExecution.StepStatus == UNKNOWN {
 					_logger.Error(ctx, "can not restart a job that has step with unknown status, job:%v step:%v", jobName, stepExecution.StepName)
 					return -1, errors.Errorf("can not restart a job that has step with unknown status, job:%v step:%v", jobName, stepExecution.StepName)
 				}
@@ -106,7 +105,7 @@ func (e *engine) doStart(ctx context.Context, jobName string, params string, asy
 			JobInstanceId:  jobInstance.JobInstanceId,
 			JobName:        jobName,
 			JobParams:      jobParams,
-			JobStatus:      status.STARTING,
+			JobStatus:      STARTING,
 			StepExecutions: make([]*StepExecution, 0),
 			JobContext:     NewBatchContext(),
 			CreateTime:     time.Now(),
@@ -153,7 +152,7 @@ func (e *engine) Stop(ctx context.Context, jobId interface{}) error {
 					_logger.Error(ctx, "find last JobExecution error, jobName:%v, jobInstanceId:%v, err:%v", job.Name(), jobInstance.JobInstanceId, err)
 					return err
 				}
-				if execution != nil && execution.JobStatus == status.STARTING || execution.JobStatus == status.STARTED {
+				if execution != nil && execution.JobStatus == STARTING || execution.JobStatus == STARTED {
 					_logger.Info(ctx, "job will be stopped, jobName:%v, jobExecutionId:%v", job.Name(), execution.JobExecutionId)
 					return job.Stop(ctx, execution)
 				} else {

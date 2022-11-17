@@ -1,4 +1,4 @@
-package status
+package gobatch
 
 // BatchStatus status of job or step execution
 type BatchStatus string

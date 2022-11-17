@@ -2,12 +2,13 @@ package file
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type xsvMetadata struct {
@@ -36,8 +37,8 @@ func getMetadata(tp reflect.Type) (*xsvMetadata, error) {
 	meta := &xsvMetadata{
 		structType:     tp,
 		defaultByOrder: make(map[int]string),
-		//structFields:            make([]string, 0),
-		//structFieldMap:          make(map[string]int),
+		// structFields:            make([]string, 0),
+		// structFieldMap:          make(map[string]int),
 		structUnOrderedFields:   make([]string, 0),
 		structUnOrderedFieldMap: make(map[string]int),
 		structOrderedFields:     make([]string, 0),
@@ -497,7 +498,7 @@ func setValue(fieldVal string, addr reflect.Value, tp reflect.Type, tag reflect.
 			}
 			addr.Elem().Set(reflect.ValueOf(tm))
 		} else {
-			//not support
+			// not support
 		}
 	}
 	return addr, nil

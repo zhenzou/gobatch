@@ -2,10 +2,11 @@ package file
 
 import (
 	"bufio"
-	"github.com/pkg/errors"
 	"io"
 	"reflect"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type tsvReader struct {

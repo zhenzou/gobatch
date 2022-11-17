@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/chararch/gobatch/file"
+	"github.com/chararch/gobatch/extensions/file"
 )
 
 type fileCopyHandler struct {

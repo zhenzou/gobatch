@@ -2,18 +2,19 @@ package gobatch
 
 import (
 	"fmt"
-	"github.com/chararch/gobatch/file"
+
+	file2 "github.com/chararch/gobatch/extensions/file"
 )
 
 const (
-	//DefaultChunkSize default number of record per chunk to read
+	// DefaultChunkSize default number of record per chunk to read
 	DefaultChunkSize = 10
-	//DefaultPartitions default number of partitions to construct a step
+	// DefaultPartitions default number of partitions to construct a step
 	DefaultPartitions = 1
 
-	//DefaultMinPartitionSize default min number of record to process in a sub step of a partitionStep
+	// DefaultMinPartitionSize default min number of record to process in a sub step of a partitionStep
 	DefaultMinPartitionSize = 1
-	//DefaultMaxPartitionSize default max number of record to process in a sub step of a partitionStep
+	// DefaultMaxPartitionSize default max number of record to process in a sub step of a partitionStep
 	DefaultMaxPartitionSize = 2147483647
 )
 
@@ -35,7 +36,7 @@ type stepBuilder struct {
 	partitionListeners []PartitionListener
 }
 
-//NewStep initialize a step builder
+// NewStep initialize a step builder
 func NewStep(name string, handler ...interface{}) *stepBuilder {
 	if name == "" {
 		panic("step name must not be empty")
@@ -172,20 +173,20 @@ func (builder *stepBuilder) Writer(writer Writer) *stepBuilder {
 	return builder
 }
 
-func (builder *stepBuilder) ReadFile(fd file.FileObjectModel, readers ...interface{}) *stepBuilder {
+func (builder *stepBuilder) ReadFile(fd file2.FileObjectModel, readers ...interface{}) *stepBuilder {
 	fr := &fileReader{fd: fd}
 	if len(readers) > 0 {
 		for _, r := range readers {
 			switch rr := r.(type) {
-			case file.FileItemReader:
+			case file2.FileItemReader:
 				fr.reader = rr
-			case file.ChecksumVerifier:
+			case file2.ChecksumVerifier:
 				fr.verifier = rr
 			}
 		}
 	}
 	if fr.reader == nil && fr.fd.Type != "" {
-		fr.reader = file.GetFileItemReader(fr.fd.Type)
+		fr.reader = file2.GetFileItemReader(fr.fd.Type)
 	}
 	if fr.reader == nil {
 		panic("file type is non-standard and no FileItemReader specified")
@@ -194,34 +195,34 @@ func (builder *stepBuilder) ReadFile(fd file.FileObjectModel, readers ...interfa
 	return builder
 }
 
-func (builder *stepBuilder) WriteFile(fd file.FileObjectModel, writers ...interface{}) *stepBuilder {
+func (builder *stepBuilder) WriteFile(fd file2.FileObjectModel, writers ...interface{}) *stepBuilder {
 	fw := &fileWriter{fd: fd}
 	if len(writers) > 0 {
 		for _, w := range writers {
 			switch ww := w.(type) {
-			case file.FileItemWriter:
+			case file2.FileItemWriter:
 				fw.writer = ww
-			case file.ChecksumFlusher:
+			case file2.ChecksumFlusher:
 				fw.checkumer = ww
-			case file.FileMerger:
+			case file2.FileMerger:
 				fw.merger = ww
 			}
 		}
 	}
 	if fw.writer == nil && fw.fd.Type != "" {
-		fw.writer = file.GetFileItemWriter(fw.fd.Type)
+		fw.writer = file2.GetFileItemWriter(fw.fd.Type)
 	}
 	if fw.writer == nil {
 		panic("file type is non-standard and no FileItemWriter specified")
 	}
 	if fw.merger == nil && fw.fd.Type != "" {
-		fw.merger = file.GetFileMergeSplitter(fw.fd.Type)
+		fw.merger = file2.GetFileMergeSplitter(fw.fd.Type)
 	}
 	builder.writer = fw
 	return builder
 }
 
-func (builder *stepBuilder) CopyFile(filesToMove ...file.FileMove) *stepBuilder {
+func (builder *stepBuilder) CopyFile(filesToMove ...file2.FileMove) *stepBuilder {
 	builder.handler = &fileCopyHandler{filesToMove: filesToMove}
 	return builder
 }

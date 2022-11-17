@@ -2,12 +2,13 @@ package file
 
 import (
 	"fmt"
-	"github.com/jlaffaye/ftp"
 	"io"
 	"net/textproto"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/jlaffaye/ftp"
 )
 
 // LocalFileSystem a FileStorage implementation backed by local file system

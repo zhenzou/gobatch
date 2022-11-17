@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/chararch/gobatch/file"
+	file2 "github.com/chararch/gobatch/extensions/file"
 )
 
 const (
@@ -16,9 +16,9 @@ const (
 )
 
 type fileReader struct {
-	fd       file.FileObjectModel
-	reader   file.FileItemReader
-	verifier file.ChecksumVerifier
+	fd       file2.FileObjectModel
+	reader   file2.FileItemReader
+	verifier file2.ChecksumVerifier
 }
 
 func (r *fileReader) Open(execution *StepExecution) BatchError {
@@ -32,7 +32,7 @@ func (r *fileReader) Open(execution *StepExecution) BatchError {
 	fd.FileName = fileName
 	// verify checksum
 	if fd.Checksum != "" {
-		checksumer := file.GetChecksumer(fd.Checksum)
+		checksumer := file2.GetChecksumer(fd.Checksum)
 		if checksumer != nil {
 			ok, err := checksumer.Verify(fd)
 			if err != nil || !ok {
@@ -96,8 +96,8 @@ func (r *fileReader) GetPartitioner(minPartitionSize, maxPartitionSize uint) Par
 }
 
 type filePartitioner struct {
-	fd               file.FileObjectModel
-	reader           file.FileItemReader
+	fd               file2.FileObjectModel
+	reader           file2.FileItemReader
 	minPartitionSize uint
 	maxPartitionSize uint
 }
@@ -118,7 +118,7 @@ func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (
 	fd.FileName = fileName
 	// verify checksum
 	if fd.Checksum != "" {
-		checksumer := file.GetChecksumer(fd.Checksum)
+		checksumer := file2.GetChecksumer(fd.Checksum)
 		if checksumer != nil {
 			ok, err := checksumer.Verify(fd)
 			if err != nil || !ok {

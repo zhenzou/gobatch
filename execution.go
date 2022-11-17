@@ -2,8 +2,6 @@ package gobatch
 
 import (
 	"time"
-
-	"github.com/chararch/gobatch/status"
 )
 
 // JobExecution represents context of a job execution
@@ -12,7 +10,7 @@ type JobExecution struct {
 	JobInstanceId  int64
 	JobName        string
 	JobParams      map[string]interface{}
-	JobStatus      status.BatchStatus
+	JobStatus      BatchStatus
 	StepExecutions []*StepExecution
 	JobContext     *BatchContext
 	CreateTime     time.Time
@@ -31,7 +29,7 @@ func (e *JobExecution) AddStepExecution(execution *StepExecution) {
 type StepExecution struct {
 	StepExecutionId      int64
 	StepName             string
-	StepStatus           status.BatchStatus
+	StepStatus           BatchStatus
 	StepContext          *BatchContext
 	StepContextId        int64
 	StepExecutionContext *BatchContext
@@ -54,24 +52,24 @@ type StepExecution struct {
 
 func (execution *StepExecution) finish(err BatchError) {
 	if err != nil {
-		execution.StepStatus = status.FAILED
+		execution.StepStatus = FAILED
 		execution.FailError = err
 		execution.EndTime = time.Now()
 	} else {
-		execution.StepStatus = status.COMPLETED
+		execution.StepStatus = COMPLETED
 		execution.EndTime = time.Now()
 	}
 }
 
 func (execution *StepExecution) start() {
 	execution.StartTime = time.Now()
-	execution.StepStatus = status.STARTED
+	execution.StepStatus = STARTED
 }
 
 func (execution *StepExecution) deepCopy() *StepExecution {
 	result := &StepExecution{
 		StepName:             execution.StepName,
-		StepStatus:           status.STARTING,
+		StepStatus:           STARTING,
 		StepContext:          execution.StepContext.DeepCopy(),
 		StepContextId:        execution.StepContextId,
 		StepExecutionContext: execution.StepExecutionContext.DeepCopy(),

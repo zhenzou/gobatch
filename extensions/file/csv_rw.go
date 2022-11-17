@@ -3,9 +3,10 @@ package file
 import (
 	"bufio"
 	"encoding/csv"
-	"github.com/pkg/errors"
 	"io"
 	"reflect"
+
+	"github.com/pkg/errors"
 )
 
 type csvReader struct {

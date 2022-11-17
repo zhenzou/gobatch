@@ -3,9 +3,10 @@ package file
 import (
 	"bufio"
 	"encoding/json"
-	"github.com/pkg/errors"
 	"io"
 	"reflect"
+
+	"github.com/pkg/errors"
 )
 
 type jsonReader struct {

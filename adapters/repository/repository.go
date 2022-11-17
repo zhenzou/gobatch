@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/chararch/gobatch"
-	"github.com/chararch/gobatch/status"
 	"github.com/chararch/gobatch/util"
 )
 
@@ -109,7 +108,7 @@ func (r *repositoryImpl) FindLastJobExecutionByInstance(jobInstance *gobatch.Job
 			JobInstanceId:  execution.JobExecutionId,
 			JobName:        execution.JobName,
 			JobParams:      jobParams,
-			JobStatus:      status.BatchStatus(execution.Status),
+			JobStatus:      gobatch.BatchStatus(execution.Status),
 			CreateTime:     execution.CreateTime,
 			StartTime:      execution.StartTime,
 			EndTime:        execution.EndTime,
@@ -137,7 +136,7 @@ func (r *repositoryImpl) FindJobExecution(jobExecutionId int64) (*gobatch.JobExe
 			JobExecutionId: execution.JobExecutionId,
 			JobInstanceId:  execution.JobExecutionId,
 			JobName:        execution.JobName,
-			JobStatus:      status.BatchStatus(execution.Status),
+			JobStatus:      gobatch.BatchStatus(execution.Status),
 			CreateTime:     execution.CreateTime,
 			StartTime:      execution.StartTime,
 			EndTime:        execution.EndTime,
@@ -193,7 +192,7 @@ func (r *repositoryImpl) CheckJobStopping(execution *gobatch.JobExecution) (bool
 	if err != nil || storeExecution == nil {
 		return false, err
 	}
-	stoppping := storeExecution.Version != execution.Version && storeExecution.JobStatus == status.STOPPING
+	stoppping := storeExecution.Version != execution.Version && storeExecution.JobStatus == gobatch.STOPPING
 	if stoppping {
 		execution.Version = storeExecution.Version
 	}
@@ -250,7 +249,7 @@ func (r *repositoryImpl) FindLastStepExecution(jobInstanceId int64, stepName str
 
 // find last step execution by job instance and step name
 func (r *repositoryImpl) FindLastCompleteStepExecution(jobInstanceId int64, stepName string) (*gobatch.StepExecution, gobatch.BatchError) {
-	rows, err := r.db.Query("SELECT STEP_EXECUTION_ID, STEP_NAME, JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, COMMIT_COUNT, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_SKIP_COUNT, WRITE_SKIP_COUNT, PROCESS_SKIP_COUNT, ROLLBACK_COUNT, EXECUTION_CONTEXT, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_STEP_EXECUTION WHERE JOB_INSTANCE_ID=? AND STEP_NAME=? AND STATUS=? ORDER BY CREATE_TIME DESC", jobInstanceId, stepName, status.COMPLETED)
+	rows, err := r.db.Query("SELECT STEP_EXECUTION_ID, STEP_NAME, JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, COMMIT_COUNT, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_SKIP_COUNT, WRITE_SKIP_COUNT, PROCESS_SKIP_COUNT, ROLLBACK_COUNT, EXECUTION_CONTEXT, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_STEP_EXECUTION WHERE JOB_INSTANCE_ID=? AND STEP_NAME=? AND STATUS=? ORDER BY CREATE_TIME DESC", jobInstanceId, stepName, gobatch.COMPLETED)
 	if err != nil {
 		return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "query step executions from db failed", err)
 	}
@@ -290,7 +289,7 @@ func (r *repositoryImpl) extractStepExecution(rows *sql.Rows) (*gobatch.StepExec
 	stepExecution := &gobatch.StepExecution{
 		StepExecutionId:      execution.StepExecutionId,
 		StepName:             execution.StepName,
-		StepStatus:           status.BatchStatus(execution.Status),
+		StepStatus:           gobatch.BatchStatus(execution.Status),
 		StepContext:          stepContext,
 		StepContextId:        batchStepCtx.StepContextId,
 		StepExecutionContext: stepExecutionContext,
@@ -376,10 +375,10 @@ func (r *repositoryImpl) SaveStepExecution(ctx context.Context, execution *gobat
 	if err != nil {
 		return err
 	}
-	if stopping && execution.StepStatus != status.STOPPED {
-		if execution.StepStatus == status.STARTING || execution.StepStatus == status.STARTED {
+	if stopping && execution.StepStatus != gobatch.STOPPED {
+		if execution.StepStatus == gobatch.STARTING || execution.StepStatus == gobatch.STARTED {
 			oldStatus := execution.StepStatus
-			execution.StepStatus = status.STOPPED
+			execution.StepStatus = gobatch.STOPPED
 			execution.EndTime = time.Now()
 			err = r.UpdateStepStatus(execution)
 			i := 0

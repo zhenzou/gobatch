@@ -1,12 +1,14 @@
 package file
 
 import (
-	"github.com/bmizerany/assert"
-	"github.com/chararch/gobatch/util"
 	"log"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/bmizerany/assert"
+
+	"github.com/chararch/gobatch/util"
 )
 
 type Outer struct {
@@ -38,7 +40,7 @@ type Innner3 struct {
 
 func TestUnmarshalByOrder(t *testing.T) {
 	fields := []string{"", "111", "T", "100", "init", "5", "0.2", "0.5", "2021-12-02 22:10:10", "abc", "10", "20211202", "Y"}
-	//r, err := xsvUnmarshalByOrder(fields, reflect.TypeOf(Outer{}))
+	// r, err := xsvUnmarshalByOrder(fields, reflect.TypeOf(Outer{}))
 	r, err := xsvUnmarshal(fields, slice2Map(fields), reflect.TypeOf(Outer{}))
 	if err != nil {
 		panic(err)

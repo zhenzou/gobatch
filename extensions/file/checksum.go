@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-//OKFlagChecksumer generate and verify an empty file with '.ok' suffix indicating the data file completed
+// OKFlagChecksumer generate and verify an empty file with '.ok' suffix indicating the data file completed
 type OKFlagChecksumer struct {
 }
 
@@ -56,7 +56,7 @@ func (ch *OKFlagChecksumer) Checksum(fd FileObjectModel) error {
 	return w.Close()
 }
 
-//MD5Checksumer generate and verify a check file containing the md5 digest of the data file
+// MD5Checksumer generate and verify a check file containing the md5 digest of the data file
 type MD5Checksumer struct {
 }
 
@@ -67,7 +67,7 @@ func (ch *MD5Checksumer) Checksum(fd FileObjectModel) error {
 	return checksum(fd, MD5, md5.New())
 }
 
-//SHA1Checksumer generate and verify a check file containing the sha-1 digest of the data file
+// SHA1Checksumer generate and verify a check file containing the sha-1 digest of the data file
 type SHA1Checksumer struct {
 }
 
@@ -78,7 +78,7 @@ func (ch *SHA1Checksumer) Checksum(fd FileObjectModel) error {
 	return checksum(fd, SHA1, sha1.New())
 }
 
-//SHA256Checksumer generate and verify a check file containing the sha-256 digest of the data file
+// SHA256Checksumer generate and verify a check file containing the sha-256 digest of the data file
 type SHA256Checksumer struct {
 }
 
@@ -89,7 +89,7 @@ func (ch *SHA256Checksumer) Checksum(fd FileObjectModel) error {
 	return checksum(fd, SHA256, sha256.New())
 }
 
-//SHA512Checksumer generate and verify a check file containing the sha-512 digest of the data file
+// SHA512Checksumer generate and verify a check file containing the sha-512 digest of the data file
 type SHA512Checksumer struct {
 }
 
@@ -141,7 +141,7 @@ func verify(fd FileObjectModel, alg string, digest hash.Hash) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	//read checksum from check file
+	// read checksum from check file
 	checkReader, err := fs.Open(checkFile, fd.Encoding)
 	if err != nil {
 		return false, err
@@ -153,7 +153,7 @@ func verify(fd FileObjectModel, alg string, digest hash.Hash) (bool, error) {
 	}
 	hashVal := strings.TrimSpace(string(buf))
 
-	//calc checksum from data file
+	// calc checksum from data file
 	reader, err := fs.Open(fd.FileName, fd.Encoding)
 	if err != nil {
 		return false, err
@@ -169,7 +169,7 @@ func verify(fd FileObjectModel, alg string, digest hash.Hash) (bool, error) {
 }
 func checksum(fd FileObjectModel, alg string, digest hash.Hash) error {
 	fs := fd.FileStore
-	//calc checksum from file
+	// calc checksum from file
 	reader, err := fs.Open(fd.FileName, fd.Encoding)
 	if err != nil {
 		return err

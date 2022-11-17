@@ -2,8 +2,9 @@ package gobatch
 
 import (
 	"fmt"
-	"github.com/chararch/gobatch/file"
 	"strings"
+
+	file2 "github.com/chararch/gobatch/extensions/file"
 )
 
 const (
@@ -12,23 +13,23 @@ const (
 )
 
 type fileWriter struct {
-	fd        file.FileObjectModel
-	writer    file.FileItemWriter
-	checkumer file.ChecksumFlusher
-	merger    file.FileMerger
+	fd        file2.FileObjectModel
+	writer    file2.FileItemWriter
+	checkumer file2.ChecksumFlusher
+	merger    file2.FileMerger
 }
 
 func (w *fileWriter) Open(execution *StepExecution) BatchError {
 	stepName := execution.StepName
-	//get actual file name
-	fd := w.fd //copy fd
+	// get actual file name
+	fd := w.fd // copy fd
 	fp := &FilePath{fd.FileName}
 	fileName, err := fp.Format(execution)
 	if err != nil {
 		return NewBatchError(ErrCodeGeneral, "get real file path:%v err", fd.FileName, err)
 	}
 	fd.FileName = fileName
-	if strings.Index(stepName, ":") > 0 { //may be a partitioned step
+	if strings.Index(stepName, ":") > 0 { // may be a partitioned step
 		fd.FileName = fmt.Sprintf("%v.%v", fd.FileName, strings.ReplaceAll(stepName, ":", "."))
 	}
 	handle, e := w.writer.Open(fd)
@@ -60,11 +61,11 @@ func (w *fileWriter) Close(execution *StepExecution) BatchError {
 	if e != nil {
 		return NewBatchError(ErrCodeGeneral, "close file writer:%v err", fileName, e)
 	}
-	//generate file checksum
+	// generate file checksum
 	if w.fd.Checksum != "" {
 		fd := w.fd
 		fd.FileName = fileName.(string)
-		checksumer := file.GetChecksumer(fd.Checksum)
+		checksumer := file2.GetChecksumer(fd.Checksum)
 		if checksumer != nil {
 			err := checksumer.Checksum(fd)
 			if err != nil {
@@ -77,7 +78,7 @@ func (w *fileWriter) Close(execution *StepExecution) BatchError {
 
 func (w *fileWriter) Aggregate(execution *StepExecution, subExecutions []*StepExecution) BatchError {
 	if w.merger != nil {
-		subFiles := make([]file.FileObjectModel, 0)
+		subFiles := make([]file2.FileObjectModel, 0)
 		for _, subExecution := range subExecutions {
 			fileName := subExecution.StepExecutionContext.Get(fileItemWriterFileNameKey)
 			fd := w.fd
@@ -95,9 +96,9 @@ func (w *fileWriter) Aggregate(execution *StepExecution, subExecutions []*StepEx
 		if err != nil {
 			return NewBatchError(ErrCodeGeneral, "aggregate file:%v err", fd.FileName, err)
 		}
-		//generate file checksum
+		// generate file checksum
 		if fd.Checksum != "" {
-			checksumer := file.GetChecksumer(fd.Checksum)
+			checksumer := file2.GetChecksumer(fd.Checksum)
 			if checksumer != nil {
 				err = checksumer.Checksum(fd)
 				if err != nil {
