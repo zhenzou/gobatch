@@ -1,4 +1,4 @@
-package logs
+package logger
 
 import (
 	"context"
@@ -9,25 +9,17 @@ import (
 	"time"
 )
 
-// Logger logger interface
-type Logger interface {
-	Debug(ctx context.Context, msg string, args ...interface{})
-	Info(ctx context.Context, msg string, args ...interface{})
-	Warn(ctx context.Context, msg string, args ...interface{})
-	Error(ctx context.Context, msg string, args ...interface{})
-}
-
 // LogLevel log level
 type LogLevel int
 
 const (
-	//Debug enable debug or above log output
+	// Debug enable debug or above log output
 	Debug LogLevel = 0
-	//Info enable info or above log output
+	// Info enable info or above log output
 	Info LogLevel = 1
-	//Warn enable warn or above log output
+	// Warn enable warn or above log output
 	Warn LogLevel = 2
-	//Error enable error or above log output
+	// Error enable error or above log output
 	Error LogLevel = 3
 )
 
@@ -49,7 +41,7 @@ type defaultLogger struct {
 	logLevel LogLevel
 }
 
-//NewLogger init Logger instance
+// NewLogger init Logger instance
 func NewLogger(writer io.StringWriter, logLevel LogLevel) *defaultLogger {
 	return &defaultLogger{writer: writer, logLevel: logLevel}
 }

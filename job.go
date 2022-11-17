@@ -38,7 +38,7 @@ func (job *simpleJob) Name() string {
 func (job *simpleJob) Start(ctx context.Context, execution *JobExecution) (err BatchError) {
 	defer func() {
 		if er := recover(); er != nil {
-			logger.Error(ctx, "panic in job executing, jobName:%v, jobExecutionId:%v, err:%v, stack:%v", job.name, execution.JobExecutionId, er, string(debug.Stack()))
+			_logger.Error(ctx, "panic in job executing, jobName:%v, jobExecutionId:%v, err:%v, stack:%v", job.name, execution.JobExecutionId, er, string(debug.Stack()))
 			execution.JobStatus = status.FAILED
 			execution.FailError = NewBatchError(ErrCodeGeneral, "panic in job execution", er)
 			execution.EndTime = time.Now()
@@ -49,14 +49,14 @@ func (job *simpleJob) Start(ctx context.Context, execution *JobExecution) (err B
 			execution.EndTime = time.Now()
 		}
 		if err = SaveJobExecution(execution); err != nil {
-			logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", job.name, execution, err)
+			_logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", job.name, execution, err)
 		}
 	}()
-	logger.Info(ctx, "start running job, jobName:%v, jobExecutionId:%v", job.name, execution.JobExecutionId)
+	_logger.Info(ctx, "start running job, jobName:%v, jobExecutionId:%v", job.name, execution.JobExecutionId)
 	for _, listener := range job.listeners {
 		err = listener.BeforeJob(execution)
 		if err != nil {
-			logger.Error(ctx, "job listener execute err, jobName:%v, jobExecutionId:%+v, listener:%v, err:%v", job.name, execution.JobExecutionId, reflect.TypeOf(listener).String(), err)
+			_logger.Error(ctx, "job listener execute err, jobName:%v, jobExecutionId:%+v, listener:%v, err:%v", job.name, execution.JobExecutionId, reflect.TypeOf(listener).String(), err)
 			execution.JobStatus = status.FAILED
 			execution.FailError = err
 			execution.EndTime = time.Now()
@@ -66,14 +66,14 @@ func (job *simpleJob) Start(ctx context.Context, execution *JobExecution) (err B
 	execution.JobStatus = status.STARTED
 	execution.StartTime = time.Now()
 	if err = SaveJobExecution(execution); err != nil {
-		logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", job.name, execution, err)
+		_logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", job.name, execution, err)
 		return err
 	}
 	jobStatus := status.COMPLETED
 	for _, step := range job.steps {
 		e := execStep(ctx, step, execution)
 		if e != nil {
-			logger.Error(ctx, "execute step failed, jobExecutionId:%v, step:%v, err:%v", execution.JobExecutionId, step.Name(), err)
+			_logger.Error(ctx, "execute step failed, jobExecutionId:%v, step:%v, err:%v", execution.JobExecutionId, step.Name(), err)
 			if e.Code() == ErrCodeStop {
 				jobStatus = status.STOPPED
 			} else {
@@ -91,35 +91,35 @@ func (job *simpleJob) Start(ctx context.Context, execution *JobExecution) (err B
 	for _, listener := range job.listeners {
 		err = listener.AfterJob(execution)
 		if err != nil {
-			logger.Error(ctx, "job listener execute err, jobName:%v, jobExecutionId:%+v, listener:%v, err:%v", job.name, execution.JobExecutionId, reflect.TypeOf(listener).String(), err)
+			_logger.Error(ctx, "job listener execute err, jobName:%v, jobExecutionId:%+v, listener:%v, err:%v", job.name, execution.JobExecutionId, reflect.TypeOf(listener).String(), err)
 			execution.JobStatus = status.FAILED
 			execution.FailError = err
 			execution.EndTime = time.Now()
 			break
 		}
 	}
-	logger.Info(ctx, "finish job execution, jobName:%v, jobExecutionId:%v, jobStatus:%v", job.name, execution.JobExecutionId, execution.JobStatus)
+	_logger.Info(ctx, "finish job execution, jobName:%v, jobExecutionId:%v, jobStatus:%v", job.name, execution.JobExecutionId, execution.JobStatus)
 	return nil
 }
 
 func execStep(ctx context.Context, step Step, execution *JobExecution) (err BatchError) {
 	defer func() {
 		if err != nil && err.Code() != ErrCodeStop {
-			logger.Error(ctx, "error in step executing, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), err)
+			_logger.Error(ctx, "error in step executing, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), err)
 		}
 	}()
 	lastStepExecution, er := FindLastStepExecution(execution.JobInstanceId, step.Name())
 	if er != nil {
 		err = er
-		logger.Error(ctx, "find last StepExecution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), er)
+		_logger.Error(ctx, "find last StepExecution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), er)
 		return er
 	}
 	if lastStepExecution != nil && lastStepExecution.StepStatus == status.COMPLETED {
-		logger.Info(ctx, "skip completed step, jobExecutionId:%v, stepName:%v", execution.JobExecutionId, step.Name())
+		_logger.Info(ctx, "skip completed step, jobExecutionId:%v, stepName:%v", execution.JobExecutionId, step.Name())
 		return nil
 	}
 	if lastStepExecution != nil && (lastStepExecution.StepStatus == status.STARTING || lastStepExecution.StepStatus == status.STARTED || lastStepExecution.StepStatus == status.STOPPING) {
-		logger.Error(ctx, "last StepExecution is in progress, jobExecutionId:%v, stepName:%v", execution.JobExecutionId, step.Name())
+		_logger.Error(ctx, "last StepExecution is in progress, jobExecutionId:%v, stepName:%v", execution.JobExecutionId, step.Name())
 		return NewBatchError(ErrCodeConcurrency, "last StepExecution of the Step:%v is in progress", step.Name())
 	}
 	stepExecution := &StepExecution{
@@ -137,14 +137,14 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 	}
 	e := SaveStepExecution(ctx, stepExecution)
 	if e != nil {
-		logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
+		_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
 		err = e
 		return err
 	}
 	execution.AddStepExecution(stepExecution)
 	err = step.Exec(ctx, stepExecution)
 	if err != nil || stepExecution.StepStatus != status.COMPLETED {
-		logger.Error(ctx, "step executing failed, jobExecutionId:%v, stepName:%v, stepStatus:%v, err:%v", execution.JobExecutionId, step.Name(), stepExecution.StepStatus, e)
+		_logger.Error(ctx, "step executing failed, jobExecutionId:%v, stepName:%v, stepStatus:%v, err:%v", execution.JobExecutionId, step.Name(), stepExecution.StepStatus, e)
 		execution.JobStatus = stepExecution.StepStatus
 		if err != nil && stepExecution.StepStatus != status.FAILED {
 			stepExecution.StepStatus = status.FAILED
@@ -157,7 +157,7 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 		execution.EndTime = time.Now()
 		e = SaveStepExecution(ctx, stepExecution)
 		if e != nil {
-			logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
+			_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
 			err = e
 			return err
 		}
@@ -166,7 +166,7 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 		stepExecution.EndTime = time.Now()
 		e = SaveStepExecution(ctx, stepExecution)
 		if e != nil {
-			logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
+			_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecutionId, step.Name(), e)
 			err = e
 			return err
 		}
@@ -175,7 +175,7 @@ func execStep(ctx context.Context, step Step, execution *JobExecution) (err Batc
 }
 
 func (job *simpleJob) Stop(ctx context.Context, execution *JobExecution) BatchError {
-	logger.Info(ctx, "stop job, jobName:%v, jobExecutionId:%v, jobStatus:%v", job.name, execution.JobExecutionId, execution.JobStatus)
+	_logger.Info(ctx, "stop job, jobName:%v, jobExecutionId:%v, jobStatus:%v", job.name, execution.JobExecutionId, execution.JobStatus)
 	execution.JobStatus = status.STOPPING
 	execution.EndTime = time.Now()
 	return SaveJobExecution(execution)

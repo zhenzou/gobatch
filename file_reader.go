@@ -3,6 +3,7 @@ package gobatch
 import (
 	"context"
 	"fmt"
+
 	"github.com/chararch/gobatch/file"
 )
 
@@ -21,15 +22,15 @@ type fileReader struct {
 }
 
 func (r *fileReader) Open(execution *StepExecution) BatchError {
-	//get actual file name
-	fd := r.fd //copy fd
+	// get actual file name
+	fd := r.fd // copy fd
 	fp := &FilePath{fd.FileName}
 	fileName, err := fp.Format(execution)
 	if err != nil {
 		return NewBatchError(ErrCodeGeneral, "get real file path:%v err", fd.FileName, err)
 	}
 	fd.FileName = fileName
-	//verify checksum
+	// verify checksum
 	if fd.Checksum != "" {
 		checksumer := file.GetChecksumer(fd.Checksum)
 		if checksumer != nil {
@@ -39,7 +40,7 @@ func (r *fileReader) Open(execution *StepExecution) BatchError {
 			}
 		}
 	}
-	//read file
+	// read file
 	handle, e := r.reader.Open(fd)
 	if e != nil {
 		return NewBatchError(ErrCodeGeneral, "open file reader:%v err", fd, e)
@@ -108,14 +109,14 @@ func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (
 		}
 	}()
 	// get actual file name
-	fd := p.fd //copy fd
+	fd := p.fd // copy fd
 	fp := &FilePath{fd.FileName}
 	fileName, err := fp.Format(execution)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeGeneral, "get real file path:%v err", fd.FileName, err)
 	}
 	fd.FileName = fileName
-	//verify checksum
+	// verify checksum
 	if fd.Checksum != "" {
 		checksumer := file.GetChecksumer(fd.Checksum)
 		if checksumer != nil {
@@ -125,7 +126,7 @@ func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (
 			}
 		}
 	}
-	//read file
+	// read file
 	count, err := p.reader.Count(fd)
 	if err != nil {
 		return nil, NewBatchError(ErrCodeGeneral, "Count() err", err)
@@ -156,7 +157,7 @@ func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (
 		subExecutions = append(subExecutions, subExecution)
 		i++
 	}
-	logger.Info(context.Background(), "partition step:%v, total count:%v, partitions:%v, partitionSize:%v, subExecutions:%v", execution.StepName, count, partitions, partitionSize, len(subExecutions))
+	_logger.Info(context.Background(), "partition step:%v, total count:%v, partitions:%v, partitionSize:%v, subExecutions:%v", execution.StepName, count, partitions, partitionSize, len(subExecutions))
 	return subExecutions, nil
 }
 

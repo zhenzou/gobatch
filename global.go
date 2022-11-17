@@ -2,17 +2,14 @@ package gobatch
 
 import (
 	"database/sql"
-	"os"
-
-	"github.com/chararch/gobatch/internal/logs"
 )
 
 // log
-var logger logs.Logger = logs.NewLogger(os.Stdout, logs.Info)
+var _logger Logger
 
 // SetLogger set a logger instance for GoBatch
-func SetLogger(l logs.Logger) {
-	logger = l
+func SetLogger(logger Logger) {
+	_logger = logger
 }
 
 // task pool
