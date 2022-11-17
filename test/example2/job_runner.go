@@ -3,11 +3,16 @@ package example2
 import (
 	"context"
 	"database/sql"
-	"github.com/chararch/gobatch"
-	"github.com/chararch/gobatch/util"
-	_ "github.com/go-sql-driver/mysql"
 	"log"
+	"os"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/chararch/gobatch"
+	"github.com/chararch/gobatch/adapters/logger"
+	"github.com/chararch/gobatch/adapters/repository"
+	"github.com/chararch/gobatch/util"
 )
 
 func openDB() *sql.DB {
@@ -34,7 +39,10 @@ func removeJobData() {
 
 func buildAndRunJob() {
 	sqlDb := openDB()
-	gobatch.SetDB(sqlDb)
+
+	logger := logger.NewLogger(os.Stdout, logger.Info)
+	engine := gobatch.NewEngine(repository.New(sqlDb, logger))
+
 	gobatch.SetTransactionManager(gobatch.NewTransactionManager(sqlDb))
 
 	step1 := gobatch.NewStep("import_trade").ReadFile(tradeFile).Writer(&tradeImporter{sqlDb}).Partitions(10).Build()
@@ -44,12 +52,11 @@ func buildAndRunJob() {
 	step5 := gobatch.NewStep("upload_file_to_ftp").CopyFile(copyFileToFtp, copyChecksumFileToFtp).Build()
 	job := gobatch.NewJob("accounting_job").Step(step1, step2, step3, step4, step5).Build()
 
-	gobatch.Register(job)
+	engine.Register(job)
 
 	params, _ := util.JsonString(map[string]interface{}{
 		"date": time.Now().Format("2006-01-02"),
 		"rand": time.Now().Nanosecond(),
 	})
-	gobatch.Start(context.Background(), job.Name(), params)
-
+	engine.Start(context.Background(), job.Name(), params)
 }

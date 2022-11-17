@@ -4,10 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/chararch/gobatch"
-	"github.com/chararch/gobatch/util"
-	_ "github.com/go-sql-driver/mysql"
+	"os"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/chararch/gobatch"
+	"github.com/chararch/gobatch/adapters/logger"
+	"github.com/chararch/gobatch/adapters/repository"
+	"github.com/chararch/gobatch/util"
 )
 
 // simple task
@@ -15,7 +20,7 @@ func mytask() {
 	fmt.Println("mytask executed")
 }
 
-//reader
+// reader
 type myReader struct {
 }
 
@@ -28,17 +33,15 @@ func (r *myReader) Read(chunkCtx *gobatch.ChunkContext) (interface{}, gobatch.Ba
 	return nil, nil
 }
 
-//processor
-type myProcessor struct {
-}
+// processor
+type myProcessor struct{}
 
 func (r *myProcessor) Process(item interface{}, chunkCtx *gobatch.ChunkContext) (interface{}, gobatch.BatchError) {
 	return fmt.Sprintf("processed-%v", item), nil
 }
 
-//writer
-type myWriter struct {
-}
+// writer
+type myWriter struct{}
 
 func (r *myWriter) Write(items []interface{}, chunkCtx *gobatch.ChunkContext) gobatch.BatchError {
 	fmt.Printf("write: %v\n", items)
@@ -46,30 +49,37 @@ func (r *myWriter) Write(items []interface{}, chunkCtx *gobatch.ChunkContext) go
 }
 
 func main() {
-	//set db for gobatch to store job&step execution context
+	// set db for gobatch to store job&step execution context
 	var db *sql.DB
 	var err error
 	db, err = sql.Open("mysql", "root:root123@tcp(127.0.0.1:3306)/gobatch?charset=utf8&parseTime=true")
 	if err != nil {
 		panic(err)
 	}
-	gobatch.SetDB(db)
+	logger := logger.NewLogger(os.Stdout, logger.Info)
+	engine := gobatch.NewEngine(repository.New(db, logger))
 
-	//build steps
+	// build steps
 	step1 := gobatch.NewStep("mytask").Handler(mytask).Build()
-	//step2 := gobatch.NewStep("my_step").Handler(&myReader{}, &myProcessor{}, &myWriter{}).Build()
+	// step2 := gobatch.NewStep("my_step").Handler(&myReader{}, &myProcessor{}, &myWriter{}).Build()
 	step2 := gobatch.NewStep("my_step").Reader(&myReader{}).Processor(&myProcessor{}).Writer(&myWriter{}).ChunkSize(10).Build()
 
-	//build job
+	// build job
 	job := gobatch.NewJob("my_job").Step(step1, step2).Build()
 
-	//register job to gobatch
-	gobatch.Register(job)
+	// register job to gobatch
+	err = engine.Register(job)
+	if err != nil {
+		panic(err)
+	}
 
-	//run
-	//gobatch.StartAsync(context.Background(), job.Name(), "")
+	// run
+	// gobatch.StartAsync(context.Background(), job.Name(), "")
 	params, _ := util.JsonString(map[string]interface{}{
 		"rand": time.Now().Nanosecond(),
 	})
-	gobatch.Start(context.Background(), job.Name(), params)
+	_, err = engine.Start(context.Background(), job.Name(), params)
+	if err != nil {
+		panic(err)
+	}
 }
