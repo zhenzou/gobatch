@@ -57,7 +57,9 @@ func main() {
 		panic(err)
 	}
 	logger := logger.NewLogger(os.Stdout, logger.Info)
-	engine := gobatch.NewEngine(repository.New(db, logger))
+
+	repo := repository.New(db, logger)
+	engine := gobatch.NewEngine(repo)
 
 	// build steps
 	step1 := gobatch.NewStep("mytask").Handler(mytask).Build()
@@ -65,7 +67,8 @@ func main() {
 	step2 := gobatch.NewStep("my_step").Reader(&myReader{}).Processor(&myProcessor{}).Writer(&myWriter{}).ChunkSize(10).Build()
 
 	// build job
-	job := gobatch.NewJob("my_job").Step(step1, step2).Build()
+	factory := gobatch.NewJobBuilderFactory(repo)
+	job := factory.Get("my_job").Start(step1).Next(step2).Build()
 
 	// register job to gobatch
 	err = engine.Register(job)

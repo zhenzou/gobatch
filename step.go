@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/chararch/gobatch/util"
+	"github.com/samber/lo"
 )
 
 // Step step interface
@@ -572,7 +572,7 @@ func (step *partitionStep) split(ctx context.Context, execution *StepExecution, 
 				return nil, err
 			}
 			if lastStepExecution != nil {
-				if util.In(lastStepExecution.StepStatus, []interface{}{STARTING, STARTED, STOPPING, UNKNOWN}) {
+				if lo.Contains([]BatchStatus{STARTING, STARTED, STOPPING, UNKNOWN}, lastStepExecution.StepStatus) {
 					_logger.Error(ctx, "last StepExecution is in progress or terminated abnormally, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
 					return nil, NewBatchError(ErrCodeGeneral, "last StepExecution is in progress or terminated abnormally, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
 				}

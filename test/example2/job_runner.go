@@ -41,7 +41,8 @@ func buildAndRunJob() {
 	sqlDb := openDB()
 
 	logger := logger.NewLogger(os.Stdout, logger.Info)
-	engine := gobatch.NewEngine(repository.New(sqlDb, logger))
+	repo := repository.New(sqlDb, logger)
+	engine := gobatch.NewEngine(repo)
 
 	gobatch.SetTransactionManager(gobatch.NewTransactionManager(sqlDb))
 
@@ -50,7 +51,10 @@ func buildAndRunJob() {
 	step3 := gobatch.NewStep("stats").Handler(&statsHandler{sqlDb}).Build()
 	step4 := gobatch.NewStep("export_trade").Reader(&tradeReader{sqlDb}).WriteFile(tradeFileExport).Partitions(10).Build()
 	step5 := gobatch.NewStep("upload_file_to_ftp").CopyFile(copyFileToFtp, copyChecksumFileToFtp).Build()
-	job := gobatch.NewJob("accounting_job").Step(step1, step2, step3, step4, step5).Build()
+
+	factory := gobatch.NewJobBuilderFactory(repo)
+
+	job := factory.Get("accounting_job").Start(step1).Steps(step2, step3, step4, step5).Build()
 
 	engine.Register(job)
 

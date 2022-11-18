@@ -1,34 +1,87 @@
 package gobatch
 
-import "fmt"
+import (
+	"fmt"
+)
+
+type JobBuilderFactory interface {
+	Get(name string) JobBuilder
+}
+
+func NewJobBuilderFactory(repository Repository) JobBuilderFactory {
+	return &jobBuilderFactory{
+		repository: repository,
+		builders:   map[string]JobBuilder{},
+	}
+}
+
+type jobBuilderFactory struct {
+	repository Repository
+	builders   map[string]JobBuilder
+}
+
+func (j jobBuilderFactory) Get(name string) JobBuilder {
+	return &jobBuilder{
+		name: name,
+	}
+}
+
+type JobBuilder interface {
+	Start(step Step) SimpleJobBuilder
+}
 
 type jobBuilder struct {
+	name       string
+	repository Repository
+}
+
+func (builder *jobBuilder) Start(step Step) SimpleJobBuilder {
+	return newSimpleJobBuilder(builder.name, builder.repository, step)
+}
+
+type SimpleJobBuilder interface {
+	Next(step Step) SimpleJobBuilder
+	Repository(repository Repository) SimpleJobBuilder
+	Steps(step ...Step) SimpleJobBuilder
+	Listener(listener ...interface{}) SimpleJobBuilder
+	// Build TODO params
+	Build() Job
+}
+
+type simpleJobBuilder struct {
 	name               string
 	steps              []Step
 	jobListeners       []JobListener
 	stepListeners      []StepListener
 	chunkListeners     []ChunkListener
 	partitionListeners []PartitionListener
+	repository         Repository
 }
 
-//NewJob new instance of job builder
-func NewJob(name string, steps ...Step) *jobBuilder {
-	if name == "" {
-		panic("job name must not be empty")
+func newSimpleJobBuilder(name string, repository Repository, step Step) SimpleJobBuilder {
+	return &simpleJobBuilder{
+		name:       name,
+		steps:      []Step{step},
+		repository: repository,
 	}
-	builder := &jobBuilder{
-		name:  name,
-		steps: steps,
-	}
+}
+
+func (builder *simpleJobBuilder) Next(step Step) SimpleJobBuilder {
+	builder.steps = append(builder.steps, step)
 	return builder
 }
 
-func (builder *jobBuilder) Step(step ...Step) *jobBuilder {
+func (builder *simpleJobBuilder) Repository(repository Repository) SimpleJobBuilder {
+	builder.repository = repository
+	return builder
+}
+
+func (builder *simpleJobBuilder) Steps(step ...Step) SimpleJobBuilder {
 	builder.steps = append(builder.steps, step...)
 	return builder
 }
 
-func (builder *jobBuilder) Listener(listener ...interface{}) *jobBuilder {
+func (builder *simpleJobBuilder) Listener(listener ...interface{}) SimpleJobBuilder {
 	for _, l := range listener {
 		switch ll := l.(type) {
 		case JobListener:
@@ -46,7 +99,7 @@ func (builder *jobBuilder) Listener(listener ...interface{}) *jobBuilder {
 	return builder
 }
 
-func (builder *jobBuilder) Build() Job {
+func (builder *simpleJobBuilder) Build() Job {
 	var job Job
 	for _, sl := range builder.stepListeners {
 		for _, step := range builder.steps {
@@ -67,6 +120,6 @@ func (builder *jobBuilder) Build() Job {
 			}
 		}
 	}
-	job = newSimpleJob(builder.name, builder.steps, builder.jobListeners)
+	job = newSimpleJob(builder.name, builder.steps, builder.jobListeners, builder.repository)
 	return job
 }

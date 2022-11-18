@@ -1,6 +1,8 @@
 package example2
 
-import "time"
+import (
+	"time"
+)
 
 // Trade trade model
 type Trade struct {
