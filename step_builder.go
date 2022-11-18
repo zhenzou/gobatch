@@ -18,6 +18,61 @@ const (
 	DefaultMaxPartitionSize = 2147483647
 )
 
+type StepBuilderFactory interface {
+	Get(name string) StepBuilder
+}
+
+func NewStepBuilderFactory(repository Repository, txnMgr TransactionManager) StepBuilderFactory {
+	return &stepBuilderFactory{
+		repository: repository,
+		txnMgr:     txnMgr,
+	}
+}
+
+type stepBuilderFactory struct {
+	repository Repository
+	txnMgr     TransactionManager
+}
+
+func (j *stepBuilderFactory) Get(name string) StepBuilder {
+	if name == "" {
+		panic("step name must not be empty")
+	}
+	return &stepBuilder{
+		name:               name,
+		repository:         j.repository,
+		txnMgr:             j.txnMgr,
+		processor:          &nilProcessor{},
+		writer:             &nilWriter{},
+		chunkSize:          DefaultChunkSize,
+		partitions:         DefaultPartitions,
+		minPartitionSize:   DefaultMinPartitionSize,
+		maxPartitionSize:   DefaultMaxPartitionSize,
+		stepListeners:      make([]StepListener, 0),
+		chunkListeners:     make([]ChunkListener, 0),
+		partitionListeners: make([]PartitionListener, 0),
+	}
+}
+
+type StepBuilder interface {
+	Handler(handler interface{}) StepBuilder
+	Task(task Task) StepBuilder
+	Reader(reader interface{}) StepBuilder
+	Processor(processor Processor) StepBuilder
+	Writer(writer Writer) StepBuilder
+	ChunkSize(chunkSize uint) StepBuilder
+	Partitioner(partitioner Partitioner) StepBuilder
+	Partitions(partitions uint, partitionSize ...uint) StepBuilder
+	Aggregator(aggregator Aggregator) StepBuilder
+	Listener(listener ...interface{}) StepBuilder
+
+	// ReadFile TODO remove
+	ReadFile(fd file2.FileObjectModel, readers ...interface{}) StepBuilder
+	WriteFile(fd file2.FileObjectModel, writers ...interface{}) StepBuilder
+	CopyFile(filesToMove ...file2.FileMove) StepBuilder
+	Build() Step
+}
+
 type stepBuilder struct {
 	name               string
 	task               Task
@@ -34,35 +89,12 @@ type stepBuilder struct {
 	stepListeners      []StepListener
 	chunkListeners     []ChunkListener
 	partitionListeners []PartitionListener
+
+	txnMgr     TransactionManager
+	repository Repository
 }
 
-// NewStep initialize a step builder
-func NewStep(name string, handler ...interface{}) *stepBuilder {
-	if name == "" {
-		panic("step name must not be empty")
-	}
-	builder := &stepBuilder{
-		name:               name,
-		processor:          &nilProcessor{},
-		writer:             &nilWriter{},
-		chunkSize:          DefaultChunkSize,
-		partitions:         DefaultPartitions,
-		minPartitionSize:   DefaultMinPartitionSize,
-		maxPartitionSize:   DefaultMaxPartitionSize,
-		stepListeners:      make([]StepListener, 0),
-		chunkListeners:     make([]ChunkListener, 0),
-		partitionListeners: make([]PartitionListener, 0),
-	}
-	if len(handler) > 0 {
-		for _, h := range handler {
-			builder.Handler(h)
-		}
-	}
-
-	return builder
-}
-
-func (builder *stepBuilder) Handler(handler interface{}) *stepBuilder {
+func (builder *stepBuilder) Handler(handler interface{}) StepBuilder {
 	valid := false
 	switch val := handler.(type) {
 	case Task:
@@ -144,12 +176,12 @@ func (builder *stepBuilder) Handler(handler interface{}) *stepBuilder {
 	return builder
 }
 
-func (builder *stepBuilder) Task(task Task) *stepBuilder {
+func (builder *stepBuilder) Task(task Task) StepBuilder {
 	builder.task = task
 	return builder
 }
 
-func (builder *stepBuilder) Reader(reader interface{}) *stepBuilder {
+func (builder *stepBuilder) Reader(reader interface{}) StepBuilder {
 	switch r := reader.(type) {
 	case Reader:
 		builder.reader = r
@@ -163,17 +195,17 @@ func (builder *stepBuilder) Reader(reader interface{}) *stepBuilder {
 	return builder
 }
 
-func (builder *stepBuilder) Processor(processor Processor) *stepBuilder {
+func (builder *stepBuilder) Processor(processor Processor) StepBuilder {
 	builder.processor = processor
 	return builder
 }
 
-func (builder *stepBuilder) Writer(writer Writer) *stepBuilder {
+func (builder *stepBuilder) Writer(writer Writer) StepBuilder {
 	builder.writer = writer
 	return builder
 }
 
-func (builder *stepBuilder) ReadFile(fd file2.FileObjectModel, readers ...interface{}) *stepBuilder {
+func (builder *stepBuilder) ReadFile(fd file2.FileObjectModel, readers ...interface{}) StepBuilder {
 	fr := &fileReader{fd: fd}
 	if len(readers) > 0 {
 		for _, r := range readers {
@@ -195,7 +227,7 @@ func (builder *stepBuilder) ReadFile(fd file2.FileObjectModel, readers ...interf
 	return builder
 }
 
-func (builder *stepBuilder) WriteFile(fd file2.FileObjectModel, writers ...interface{}) *stepBuilder {
+func (builder *stepBuilder) WriteFile(fd file2.FileObjectModel, writers ...interface{}) StepBuilder {
 	fw := &fileWriter{fd: fd}
 	if len(writers) > 0 {
 		for _, w := range writers {
@@ -222,22 +254,22 @@ func (builder *stepBuilder) WriteFile(fd file2.FileObjectModel, writers ...inter
 	return builder
 }
 
-func (builder *stepBuilder) CopyFile(filesToMove ...file2.FileMove) *stepBuilder {
+func (builder *stepBuilder) CopyFile(filesToMove ...file2.FileMove) StepBuilder {
 	builder.handler = &fileCopyHandler{filesToMove: filesToMove}
 	return builder
 }
 
-func (builder *stepBuilder) ChunkSize(chunkSize uint) *stepBuilder {
+func (builder *stepBuilder) ChunkSize(chunkSize uint) StepBuilder {
 	builder.chunkSize = chunkSize
 	return builder
 }
 
-func (builder *stepBuilder) Partitioner(partitioner Partitioner) *stepBuilder {
+func (builder *stepBuilder) Partitioner(partitioner Partitioner) StepBuilder {
 	builder.partitioner = partitioner
 	return builder
 }
 
-func (builder *stepBuilder) Partitions(partitions uint, partitionSize ...uint) *stepBuilder {
+func (builder *stepBuilder) Partitions(partitions uint, partitionSize ...uint) StepBuilder {
 	builder.partitions = partitions
 	if len(partitionSize) == 1 {
 		builder.minPartitionSize = partitionSize[0]
@@ -250,12 +282,12 @@ func (builder *stepBuilder) Partitions(partitions uint, partitionSize ...uint) *
 	return builder
 }
 
-func (builder *stepBuilder) Aggregator(aggregator Aggregator) *stepBuilder {
+func (builder *stepBuilder) Aggregator(aggregator Aggregator) StepBuilder {
 	builder.aggregator = aggregator
 	return builder
 }
 
-func (builder *stepBuilder) Listener(listener ...interface{}) *stepBuilder {
+func (builder *stepBuilder) Listener(listener ...interface{}) StepBuilder {
 	for _, l := range listener {
 		switch ll := l.(type) {
 		case StepListener:

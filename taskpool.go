@@ -3,6 +3,7 @@ package gobatch
 import (
 	"context"
 	"fmt"
+
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -44,7 +45,7 @@ func (pool *taskPool) Submit(ctx context.Context, task func() (interface{}, erro
 	err := pool.pool.Submit(func() {
 		defer func() {
 			if err := recover(); err != nil {
-				//todo log
+				// todo log
 				result <- nil
 				result <- fmt.Errorf("panic:%v", err)
 				close(result)

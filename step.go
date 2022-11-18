@@ -17,9 +17,46 @@ type Step interface {
 	addListener(listener StepListener)
 }
 
+type baseStep struct {
+	name       string
+	repository Repository
+}
+
+func (step *baseStep) Name() string {
+	return step.name
+}
+
+func (step *baseStep) execEnd(ctx context.Context, execution *StepExecution, err BatchError, recoverErr interface{}) BatchError {
+	if recoverErr != nil {
+		_logger.Error(ctx, "panic in step executing, jobExecutionId:%v, stepName:%v, err:%v, stack:%v", execution.JobExecution.JobExecutionId, execution.StepName, recoverErr, string(debug.Stack()))
+		execution.StepStatus = FAILED
+		execution.FailError = NewBatchError(ErrCodeGeneral, "panic in step execution", recoverErr)
+		execution.EndTime = time.Now()
+	}
+	if err != nil && execution.StepStatus != FAILED && execution.StepStatus != UNKNOWN {
+		_logger.Error(ctx, "step executing error, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, err)
+		execution.StepStatus = FAILED
+		execution.FailError = err
+		execution.EndTime = time.Now()
+	}
+	for i := 0; i < 3; i++ {
+		e := step.repository.SaveStepExecution(ctx, execution)
+		if e != nil && (e.Code() == ErrCodeDbFail || e.Code() == ErrCodeConcurrency) { // retry
+			_logger.Error(ctx, "save step execution failed and retry for recoverable err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
+			continue
+		}
+		if e != nil {
+			err = e
+			_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, StepExecution:%+v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, execution, e)
+		}
+		break
+	}
+	return err
+}
+
 // simpleStep simple step implementation for internal use
 type simpleStep struct {
-	name      string
+	baseStep
 	handler   Handler
 	listeners []StepListener
 }
@@ -36,13 +73,17 @@ func newSimpleStep(name string, handler interface{}, listeners []StepListener) *
 	switch h := handler.(type) {
 	case Handler:
 		return &simpleStep{
-			name:      name,
+			baseStep: baseStep{
+				name: name,
+			},
 			handler:   h,
 			listeners: listeners,
 		}
 	case Task:
 		return &simpleStep{
-			name: name,
+			baseStep: baseStep{
+				name: name,
+			},
 			handler: &handlerAdapter{
 				task: h,
 			},
@@ -54,13 +95,9 @@ func newSimpleStep(name string, handler interface{}, listeners []StepListener) *
 
 }
 
-func (step *simpleStep) Name() string {
-	return step.name
-}
-
 func (step *simpleStep) Exec(ctx context.Context, execution *StepExecution) (err BatchError) {
 	defer func() {
-		err = execEnd(ctx, execution, err, recover())
+		err = step.execEnd(ctx, execution, err, recover())
 	}()
 	_logger.Info(ctx, "step execute start, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
 	for _, listener := range step.listeners {
@@ -71,7 +108,7 @@ func (step *simpleStep) Exec(ctx context.Context, execution *StepExecution) (err
 		}
 	}
 	execution.start()
-	e := SaveStepExecution(ctx, execution)
+	e := step.repository.SaveStepExecution(ctx, execution)
 	if e != nil {
 		_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, StepExecution:%+v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, execution, e)
 		err = e
@@ -103,41 +140,13 @@ func (step *simpleStep) Exec(ctx context.Context, execution *StepExecution) (err
 	return nil
 }
 
-func execEnd(ctx context.Context, execution *StepExecution, err BatchError, recoverErr interface{}) BatchError {
-	if recoverErr != nil {
-		_logger.Error(ctx, "panic in step executing, jobExecutionId:%v, stepName:%v, err:%v, stack:%v", execution.JobExecution.JobExecutionId, execution.StepName, recoverErr, string(debug.Stack()))
-		execution.StepStatus = FAILED
-		execution.FailError = NewBatchError(ErrCodeGeneral, "panic in step execution", recoverErr)
-		execution.EndTime = time.Now()
-	}
-	if err != nil && execution.StepStatus != FAILED && execution.StepStatus != UNKNOWN {
-		_logger.Error(ctx, "step executing error, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, err)
-		execution.StepStatus = FAILED
-		execution.FailError = err
-		execution.EndTime = time.Now()
-	}
-	for i := 0; i < 3; i++ {
-		e := SaveStepExecution(ctx, execution)
-		if e != nil && (e.Code() == ErrCodeDbFail || e.Code() == ErrCodeConcurrency) { // retry
-			_logger.Error(ctx, "save step execution failed and retry for recoverable err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
-			continue
-		}
-		if e != nil {
-			err = e
-			_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, StepExecution:%+v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, execution, e)
-		}
-		break
-	}
-	return err
-}
-
 func (step *simpleStep) addListener(listener StepListener) {
 	step.listeners = append(step.listeners, listener)
 }
 
 // chunkStep step implementation that process data in chunk
 type chunkStep struct {
-	name           string
+	baseStep
 	reader         Reader
 	processor      Processor
 	writer         Writer
@@ -169,7 +178,9 @@ func (ch *chunk) skip(index int) {
 
 func newChunkStep(name string, reader Reader, processor Processor, writer Writer, chunkSize uint, listeners []StepListener, chunkListeners []ChunkListener) *chunkStep {
 	return &chunkStep{
-		name:           name,
+		baseStep: baseStep{
+			name: name,
+		},
 		reader:         reader,
 		processor:      processor,
 		writer:         writer,
@@ -179,13 +190,9 @@ func newChunkStep(name string, reader Reader, processor Processor, writer Writer
 	}
 }
 
-func (step *chunkStep) Name() string {
-	return step.name
-}
-
 func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err BatchError) {
 	defer func() {
-		err = execEnd(ctx, execution, err, recover())
+		err = step.execEnd(ctx, execution, err, recover())
 	}()
 	_logger.Info(ctx, "step execute start, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
 	for _, listener := range step.listeners {
@@ -196,7 +203,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 		}
 	}
 	execution.start()
-	e := SaveStepExecution(ctx, execution)
+	e := step.repository.SaveStepExecution(ctx, execution)
 	if e != nil {
 		err = e
 		_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
@@ -245,7 +252,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 			}
 			execution.RollbackCount++
 			err = txErr
-			e := SaveStepExecution(ctx, execution)
+			e := step.repository.SaveStepExecution(ctx, execution)
 			if e != nil {
 				err = e
 				_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, execution:%+v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, execution, e)
@@ -256,7 +263,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 			execution.WriteCount += int64(len(output.items))
 			execution.FilterCount += int64(len(input.skipItems))
 			execution.CommitCount++
-			e := SaveStepExecution(ctx, execution)
+			e := step.repository.SaveStepExecution(ctx, execution)
 			if e != nil {
 				err = e
 				_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
@@ -406,7 +413,7 @@ func (step *chunkStep) addChunkListener(listener ChunkListener) {
 
 // partitionStep step implementation that can split process into multi sub processes which executed in parallel
 type partitionStep struct {
-	name               string
+	baseStep
 	step               Step
 	partitions         uint
 	partitioner        Partitioner
@@ -418,7 +425,9 @@ type partitionStep struct {
 
 func newPartitionStep(step Step, partitioner Partitioner, partitions uint, aggregator Aggregator, listeners []StepListener, partitionListeners []PartitionListener) *partitionStep {
 	return &partitionStep{
-		name:               step.Name(),
+		baseStep: baseStep{
+			name: step.Name(),
+		},
 		step:               step,
 		partitions:         partitions,
 		partitioner:        partitioner,
@@ -435,7 +444,7 @@ func (step *partitionStep) Name() string {
 
 func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (err BatchError) {
 	defer func() {
-		err = execEnd(ctx, execution, err, recover())
+		err = step.execEnd(ctx, execution, err, recover())
 	}()
 	_logger.Info(ctx, "start executing step, jobExecutionId:%v, stepName:%v", execution.JobExecution.JobExecutionId, execution.StepName)
 	for _, listener := range step.listeners {
@@ -446,7 +455,7 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 		}
 	}
 	execution.start()
-	e := SaveStepExecution(ctx, execution)
+	e := step.repository.SaveStepExecution(ctx, execution)
 	if e != nil {
 		err = e
 		_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
@@ -467,7 +476,7 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 		}
 		return err
 	}
-	_logger.Info(ctx, "step:%v splitted into %d partitions", execution.StepName, len(subExecutions))
+	_logger.Info(ctx, "step:%v split into %d partitions", execution.StepName, len(subExecutions))
 	for _, listener := range step.partitionListeners {
 		err = listener.AfterPartition(execution, subExecutions)
 		if err != nil {
@@ -475,14 +484,14 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 			return err
 		}
 	}
-	e = SaveStepExecution(ctx, execution)
+	e = step.repository.SaveStepExecution(ctx, execution)
 	if e != nil {
 		err = e
 		_logger.Error(ctx, "save step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, e)
 		return err
 	}
 	for _, subExecution := range subExecutions {
-		e = SaveStepExecution(ctx, subExecution)
+		e = step.repository.SaveStepExecution(ctx, subExecution)
 		if e != nil {
 			err = e
 			_logger.Error(ctx, "save sub-step execution failed, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, subExecution.StepName, e)
@@ -515,7 +524,7 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 			}
 			_logger.Info(ctx, "sub-step execute finish, jobExecutionId:%v, sub-step name:%v, sub-step status:%v", subExecutions[i].JobExecution.JobExecutionId, subExecutions[i].StepName, subExecutions[i].StepStatus)
 		}
-		e := SaveStepExecution(ctx, subExecutions[i])
+		e := step.repository.SaveStepExecution(ctx, subExecutions[i])
 		if e != nil {
 			err = e
 			_logger.Error(ctx, "save sub-step execution failed, jobExecutionId:%v, stepName:%v, err:%v", subExecutions[i].JobExecution.JobExecutionId, subExecutions[i].StepName, e)
@@ -527,7 +536,7 @@ func (step *partitionStep) Exec(ctx context.Context, execution *StepExecution) (
 		partitionNames := step.partitioner.GetPartitionNames(execution, step.partitions)
 		allSubExecutions := make([]*StepExecution, 0)
 		for _, partitionName := range partitionNames {
-			subExecution, err := FindLastCompleteStepExecution(execution.JobExecution.JobInstanceId, partitionName)
+			subExecution, err := step.repository.FindLastCompleteStepExecution(execution.JobExecution.JobInstanceId, partitionName)
 			if err != nil {
 				return err
 			}
@@ -567,7 +576,7 @@ func (step *partitionStep) split(ctx context.Context, execution *StepExecution, 
 		partitionNames := step.partitioner.GetPartitionNames(execution, uint(savedPartitions))
 		missingPartition := false
 		for _, partitionName := range partitionNames {
-			lastStepExecution, err := FindLastStepExecution(execution.JobExecution.JobInstanceId, partitionName)
+			lastStepExecution, err := step.repository.FindLastStepExecution(execution.JobExecution.JobInstanceId, partitionName)
 			if err != nil {
 				return nil, err
 			}

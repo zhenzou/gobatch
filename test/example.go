@@ -61,14 +61,17 @@ func main() {
 	repo := repository.New(db, logger)
 	engine := gobatch.NewEngine(repo)
 
+	txnMgr := gobatch.NewTransactionManager(db)
+
+	stepFactory := gobatch.NewStepBuilderFactory(repo, txnMgr)
 	// build steps
-	step1 := gobatch.NewStep("mytask").Handler(mytask).Build()
+	step1 := stepFactory.Get("mytask").Handler(mytask).Build()
 	// step2 := gobatch.NewStep("my_step").Handler(&myReader{}, &myProcessor{}, &myWriter{}).Build()
-	step2 := gobatch.NewStep("my_step").Reader(&myReader{}).Processor(&myProcessor{}).Writer(&myWriter{}).ChunkSize(10).Build()
+	step2 := stepFactory.Get("my_step").Reader(&myReader{}).Processor(&myProcessor{}).Writer(&myWriter{}).ChunkSize(10).Build()
 
 	// build job
-	factory := gobatch.NewJobBuilderFactory(repo)
-	job := factory.Get("my_job").Start(step1).Next(step2).Build()
+	jobFactory := gobatch.NewJobBuilderFactory(repo)
+	job := jobFactory.Get("my_job").Start(step1).Next(step2).Build()
 
 	// register job to gobatch
 	err = engine.Register(job)
