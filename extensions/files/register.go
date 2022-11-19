@@ -1,4 +1,4 @@
-package file
+package files
 
 // file type
 type fileHandler struct {

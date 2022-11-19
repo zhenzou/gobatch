@@ -10,7 +10,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/chararch/gobatch"
-	"github.com/chararch/gobatch/adapters/logger"
 	"github.com/chararch/gobatch/adapters/repository"
 	"github.com/chararch/gobatch/util"
 )
@@ -56,7 +55,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	logger := logger.NewLogger(os.Stdout, logger.Info)
+	logger := gobatch.NewLogger(os.Stdout, gobatch.Info)
 
 	repo := repository.New(db, logger)
 	engine := gobatch.NewEngine(repo)

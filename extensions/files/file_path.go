@@ -1,24 +1,27 @@
-package gobatch
+package files
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+
+	"github.com/chararch/gobatch"
 )
 
-//FilePath an abstract file path
+// FilePath an abstract file path
 type FilePath struct {
 	NamePattern string
 }
 
 var paramRegexp = regexp.MustCompile("\\{[^\\}]+\\}")
 
-//Format generate a real file path by formatting FilePath according to *StepExecution instance
-func (f *FilePath) Format(execution *StepExecution) (string, error) {
+// Format generate a real file path by formatting FilePath according to *StepExecution instance
+func (f *FilePath) Format(execution *gobatch.StepExecution) (string, error) {
 	var err error
 	factPath := paramRegexp.ReplaceAllStringFunc(f.NamePattern, func(s string) string {
 		s = s[1 : len(s)-1]
@@ -76,20 +79,20 @@ func formatParam(val interface{}, format string) (string, error) {
 	if format == "" {
 		return fmt.Sprintf("%v", val), nil
 	} else if dateFmtRegexp.MatchString(format) {
-		//format date
+		// format date
 		format = strings.ReplaceAll(format, "yyyy", "2006")
 		format = strings.ReplaceAll(format, "MM", "01")
 		format = strings.ReplaceAll(format, "dd", "02")
 		format = strings.ReplaceAll(format, "HH", "15")
 		format = strings.ReplaceAll(format, "mm", "04")
 		format = strings.ReplaceAll(format, "SS", "05")
-		dt, err := parseDate(val)
+		dt, err := parseTime(val)
 		if err != nil {
 			return "", err
 		}
 		return dt.Format(format), nil
 	} else if idx := strings.Index(format, "#"); idx >= 0 {
-		//format number
+		// format number
 		digit := 0
 		var err error
 		if idx == 0 {
@@ -110,7 +113,7 @@ func formatParam(val interface{}, format string) (string, error) {
 	}
 }
 
-func parseDate(val interface{}) (time.Time, error) {
+func parseTime(val interface{}) (time.Time, error) {
 	refVal := reflect.ValueOf(val)
 	if refVal.Kind() == reflect.Struct && refVal.Type().String() == "time.Time" {
 		return val.(time.Time), nil

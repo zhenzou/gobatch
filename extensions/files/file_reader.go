@@ -1,10 +1,10 @@
-package gobatch
+package files
 
 import (
 	"context"
 	"fmt"
 
-	file2 "github.com/chararch/gobatch/extensions/file"
+	"github.com/chararch/gobatch"
 )
 
 const (
@@ -15,35 +15,56 @@ const (
 	fileItemReaderEnd          = "gobatch.FileItemReader.end"
 )
 
-type fileReader struct {
-	fd       file2.FileObjectModel
-	reader   file2.FileItemReader
-	verifier file2.ChecksumVerifier
+func NewReader(fd FileObjectModel, readers ...interface{}) gobatch.Reader {
+	fr := &_FileReader{fd: fd}
+	if len(readers) > 0 {
+		for _, r := range readers {
+			switch rr := r.(type) {
+			case FileItemReader:
+				fr.reader = rr
+			case ChecksumVerifier:
+				fr.verifier = rr
+			}
+		}
+	}
+	if fr.reader == nil && fr.fd.Type != "" {
+		fr.reader = GetFileItemReader(fr.fd.Type)
+	}
+	if fr.reader == nil {
+		panic("file type is non-standard and no FileItemReader specified")
+	}
+	return fr
 }
 
-func (r *fileReader) Open(execution *StepExecution) BatchError {
+type _FileReader struct {
+	fd       FileObjectModel
+	reader   FileItemReader
+	verifier ChecksumVerifier
+}
+
+func (r *_FileReader) Open(execution *gobatch.StepExecution) gobatch.BatchError {
 	// get actual file name
 	fd := r.fd // copy fd
 	fp := &FilePath{fd.FileName}
 	fileName, err := fp.Format(execution)
 	if err != nil {
-		return NewBatchError(ErrCodeGeneral, "get real file path:%v err", fd.FileName, err)
+		return gobatch.NewBatchError(gobatch.ErrCodeGeneral, "get real file path:%v err", fd.FileName, err)
 	}
 	fd.FileName = fileName
 	// verify checksum
 	if fd.Checksum != "" {
-		checksumer := file2.GetChecksumer(fd.Checksum)
+		checksumer := GetChecksumer(fd.Checksum)
 		if checksumer != nil {
 			ok, err := checksumer.Verify(fd)
 			if err != nil || !ok {
-				return NewBatchError(ErrCodeGeneral, "verify file checksum:%v, ok:%v err", fd, ok, err)
+				return gobatch.NewBatchError(gobatch.ErrCodeGeneral, "verify file checksum:%v, ok:%v err", fd, ok, err)
 			}
 		}
 	}
 	// read file
 	handle, e := r.reader.Open(fd)
 	if e != nil {
-		return NewBatchError(ErrCodeGeneral, "open file reader:%v err", fd, e)
+		return gobatch.NewBatchError(gobatch.ErrCodeGeneral, "open file reader:%v err", fd, e)
 	}
 	execution.StepExecutionContext.Put(fileItemReaderHandleKey, handle)
 	execution.StepExecutionContext.Put(fileItemReaderFileNameKey, fd.FileName)
@@ -51,12 +72,12 @@ func (r *fileReader) Open(execution *StepExecution) BatchError {
 	currentIndex, _ := executionCtx.GetInt64(fileItemReaderCurrentIndex)
 	err = r.reader.SkipTo(handle, currentIndex)
 	if err != nil {
-		return NewBatchError(ErrCodeGeneral, "skip to file item:%v pos:%v err", fd, currentIndex, err)
+		return gobatch.NewBatchError(gobatch.ErrCodeGeneral, "skip to file item:%v pos:%v err", fd, currentIndex, err)
 	}
 	return nil
 }
 
-func (r *fileReader) Read(chunkCtx *ChunkContext) (interface{}, BatchError) {
+func (r *_FileReader) Read(chunkCtx *gobatch.ChunkContext) (interface{}, gobatch.BatchError) {
 	stepCtx := chunkCtx.StepExecution.StepContext
 	executionCtx := chunkCtx.StepExecution.StepExecutionContext
 	endPos, _ := stepCtx.GetInt64(fileItemReaderEnd)
@@ -66,7 +87,7 @@ func (r *fileReader) Read(chunkCtx *ChunkContext) (interface{}, BatchError) {
 	if currentIndex < endPos {
 		item, e := r.reader.ReadItem(handle)
 		if e != nil {
-			return nil, NewBatchError(ErrCodeGeneral, "read item from file:%v err", fileName, e)
+			return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "read item from file:%v err", fileName, e)
 		}
 		executionCtx.Put(fileItemReaderCurrentIndex, currentIndex+1)
 		return item, nil
@@ -74,19 +95,19 @@ func (r *fileReader) Read(chunkCtx *ChunkContext) (interface{}, BatchError) {
 	return nil, nil
 }
 
-func (r *fileReader) Close(execution *StepExecution) BatchError {
+func (r *_FileReader) Close(execution *gobatch.StepExecution) gobatch.BatchError {
 	executionCtx := execution.StepExecutionContext
 	handle := executionCtx.Get(fileItemReaderHandleKey)
 	fileName := executionCtx.Get(fileItemReaderFileNameKey)
 	executionCtx.Remove(fileItemReaderHandleKey)
 	e := r.reader.Close(handle)
 	if e != nil {
-		return NewBatchError(ErrCodeGeneral, "close file reader:%v err", fileName, e)
+		return gobatch.NewBatchError(gobatch.ErrCodeGeneral, "close file reader:%v err", fileName, e)
 	}
 	return nil
 }
 
-func (r *fileReader) GetPartitioner(minPartitionSize, maxPartitionSize uint) Partitioner {
+func (r *_FileReader) GetPartitioner(minPartitionSize, maxPartitionSize uint) gobatch.Partitioner {
 	return &filePartitioner{
 		fd:               r.fd,
 		reader:           r.reader,
@@ -96,16 +117,16 @@ func (r *fileReader) GetPartitioner(minPartitionSize, maxPartitionSize uint) Par
 }
 
 type filePartitioner struct {
-	fd               file2.FileObjectModel
-	reader           file2.FileItemReader
+	fd               FileObjectModel
+	reader           FileItemReader
 	minPartitionSize uint
 	maxPartitionSize uint
 }
 
-func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (subExecutions []*StepExecution, e BatchError) {
+func (p *filePartitioner) Partition(execution *gobatch.StepExecution, partitions uint) (subExecutions []*gobatch.StepExecution, e gobatch.BatchError) {
 	defer func() {
 		if err := recover(); err != nil {
-			e = NewBatchError(ErrCodeGeneral, "panic on Partition in filePartitioner, err", err)
+			e = gobatch.NewBatchError(gobatch.ErrCodeGeneral, "panic on Partition in filePartitioner, err", err)
 		}
 	}()
 	// get actual file name
@@ -113,25 +134,25 @@ func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (
 	fp := &FilePath{fd.FileName}
 	fileName, err := fp.Format(execution)
 	if err != nil {
-		return nil, NewBatchError(ErrCodeGeneral, "get real file path:%v err", fd.FileName, err)
+		return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "get real file path:%v err", fd.FileName, err)
 	}
 	fd.FileName = fileName
 	// verify checksum
 	if fd.Checksum != "" {
-		checksumer := file2.GetChecksumer(fd.Checksum)
+		checksumer := GetChecksumer(fd.Checksum)
 		if checksumer != nil {
 			ok, err := checksumer.Verify(fd)
 			if err != nil || !ok {
-				return nil, NewBatchError(ErrCodeGeneral, "verify file checksum:%v, ok:%v err", fd, ok, err)
+				return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "verify file checksum:%v, ok:%v err", fd, ok, err)
 			}
 		}
 	}
 	// read file
 	count, err := p.reader.Count(fd)
 	if err != nil {
-		return nil, NewBatchError(ErrCodeGeneral, "Count() err", err)
+		return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "Count() err", err)
 	}
-	subExecutions = make([]*StepExecution, 0)
+	subExecutions = make([]*gobatch.StepExecution, 0)
 	if count == 0 {
 		return subExecutions, nil
 	}
@@ -148,7 +169,7 @@ func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (
 			end = count
 		}
 		partitionName := genPartitionStepName(execution, i)
-		subExecution := execution.deepCopy()
+		subExecution := execution.Clone()
 		subExecution.StepName = partitionName
 		subExecution.StepContextId = 0
 		subExecution.StepContext.Put(fileItemReaderStart, start)
@@ -157,16 +178,16 @@ func (p *filePartitioner) Partition(execution *StepExecution, partitions uint) (
 		subExecutions = append(subExecutions, subExecution)
 		i++
 	}
-	_logger.Info(context.Background(), "partition step:%v, total count:%v, partitions:%v, partitionSize:%v, subExecutions:%v", execution.StepName, count, partitions, partitionSize, len(subExecutions))
+	gobatch.DefaultLogger.Info(context.Background(), "partition step:%v, total count:%v, partitions:%v, partitionSize:%v, subExecutions:%v", execution.StepName, count, partitions, partitionSize, len(subExecutions))
 	return subExecutions, nil
 }
 
-func genPartitionStepName(execution *StepExecution, i uint) string {
+func genPartitionStepName(execution *gobatch.StepExecution, i uint) string {
 	partitionName := fmt.Sprintf("%s:%04d", execution.StepName, i)
 	return partitionName
 }
 
-func (p *filePartitioner) GetPartitionNames(execution *StepExecution, partitions uint) []string {
+func (p *filePartitioner) GetPartitionNames(execution *gobatch.StepExecution, partitions uint) []string {
 	names := make([]string, 0)
 	for i := uint(0); i < partitions; i++ {
 		partitionName := genPartitionStepName(execution, i)

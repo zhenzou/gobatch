@@ -66,7 +66,7 @@ func (execution *StepExecution) start() {
 	execution.StepStatus = STARTED
 }
 
-func (execution *StepExecution) deepCopy() *StepExecution {
+func (execution *StepExecution) Clone() *StepExecution {
 	result := &StepExecution{
 		StepName:             execution.StepName,
 		StepStatus:           STARTING,

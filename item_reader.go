@@ -127,7 +127,7 @@ func (p *defaultPartitioner) Partition(execution *StepExecution, partitions uint
 		}
 		partitionName := fmt.Sprintf("%s:%04d", execution.StepName, i)
 		partitionKeys := keys[start:end]
-		subExecution := execution.deepCopy()
+		subExecution := execution.Clone()
 		subExecution.StepName = partitionName
 		subExecution.StepContextId = 0
 		subExecution.StepContext.Put(ItemReaderKeyList, partitionKeys)
@@ -136,7 +136,7 @@ func (p *defaultPartitioner) Partition(execution *StepExecution, partitions uint
 		subExecutions = append(subExecutions, subExecution)
 		i++
 	}
-	_logger.Info(context.Background(), "partition step:%v, total count:%v, partitions:%v, partitionSize:%v, subExecutions:%v", execution.StepName, count, partitions, partitionSize, len(subExecutions))
+	DefaultLogger.Info(context.Background(), "partition step:%v, total count:%v, partitions:%v, partitionSize:%v, subExecutions:%v", execution.StepName, count, partitions, partitionSize, len(subExecutions))
 	return subExecutions, nil
 }
 

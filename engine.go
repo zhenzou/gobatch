@@ -60,42 +60,42 @@ func (e *engine) doStart(ctx context.Context, jobName string, params string, asy
 	if job, ok := e.jobRegistry[jobName]; ok {
 		jobParams, err := ParseJobParams(params)
 		if err != nil {
-			_logger.Error(ctx, "parse job params error, jobName:%v, params:%v, err:%v", jobName, params, err)
+			DefaultLogger.Error(ctx, "parse job params error, jobName:%v, params:%v, err:%v", jobName, params, err)
 			return -1, err
 		}
 		jobInstance, err := e.repository.FindJobInstance(jobName, jobParams)
 		if err != nil {
-			_logger.Error(ctx, "find JobInstance error, jobName:%v, params:%v, err:%v", jobName, params, err)
+			DefaultLogger.Error(ctx, "find JobInstance error, jobName:%v, params:%v, err:%v", jobName, params, err)
 			return -1, err
 		}
 		if jobInstance == nil {
 			jobInstance, err = e.repository.CreateJobInstance(jobName, jobParams)
 			if err != nil {
-				_logger.Error(ctx, "find JobInstance error, jobName:%v, params:%v, err:%v", jobName, params, err)
+				DefaultLogger.Error(ctx, "find JobInstance error, jobName:%v, params:%v, err:%v", jobName, params, err)
 				return -1, err
 			}
 		}
 		jobExecution, err := e.repository.FindLastJobExecutionByInstance(jobInstance)
 		if err != nil {
-			_logger.Error(ctx, "find last JobExecution error, jobName:%v, jobInstanceId:%v, err:%v", jobName, jobInstance.JobInstanceId, err)
+			DefaultLogger.Error(ctx, "find last JobExecution error, jobName:%v, jobInstanceId:%v, err:%v", jobName, jobInstance.JobInstanceId, err)
 			return -1, err
 		}
 		if jobExecution != nil {
 			lastExecution := jobExecution
 			jobStatus := lastExecution.JobStatus
 			if jobStatus == STARTING || jobStatus == STARTED || jobStatus == STOPPING || jobStatus == UNKNOWN {
-				_logger.Error(ctx, "the job is in executing or exit from last execution abnormally, can not restart, jobName:%v, status:%v", jobName, jobStatus)
+				DefaultLogger.Error(ctx, "the job is in executing or exit from last execution abnormally, can not restart, jobName:%v, status:%v", jobName, jobStatus)
 				return -1, errors.Errorf("the job is in executing or exit from last execution abnormally, can not restart, jobName:%v, status:%v", jobName, jobStatus)
 			}
 			// find step executions & check step execution status
 			stepExecutions, err := e.repository.FindStepExecutionsByJobExecution(lastExecution.JobExecutionId)
 			if err != nil {
-				_logger.Error(ctx, "find last StepExecution error, jobName:%v, jobExecutionId:%v, err:%v", jobName, lastExecution.JobExecutionId, err)
+				DefaultLogger.Error(ctx, "find last StepExecution error, jobName:%v, jobExecutionId:%v, err:%v", jobName, lastExecution.JobExecutionId, err)
 				return -1, err
 			}
 			for _, stepExecution := range stepExecutions {
 				if stepExecution.StepStatus == UNKNOWN {
-					_logger.Error(ctx, "can not restart a job that has step with unknown status, job:%v step:%v", jobName, stepExecution.StepName)
+					DefaultLogger.Error(ctx, "can not restart a job that has step with unknown status, job:%v step:%v", jobName, stepExecution.StepName)
 					return -1, errors.Errorf("can not restart a job that has step with unknown status, job:%v step:%v", jobName, stepExecution.StepName)
 				}
 			}
@@ -112,14 +112,14 @@ func (e *engine) doStart(ctx context.Context, jobName string, params string, asy
 		}
 		err = e.repository.SaveJobExecution(execution)
 		if err != nil {
-			_logger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", jobName, execution, err)
+			DefaultLogger.Error(ctx, "save job execution failed, jobName:%v, JobExecution:%+v, err:%v", jobName, execution, err)
 			return -1, err
 		}
 		future := jobPool.Submit(ctx, func() (interface{}, error) {
 			er := job.Start(ctx, execution)
 			return nil, er
 		})
-		_logger.Info(ctx, "job started, jobName:%v, jobExecutionId:%v", jobName, execution.JobExecutionId)
+		DefaultLogger.Info(ctx, "job started, jobName:%v, jobExecutionId:%v", jobName, execution.JobExecutionId)
 		if async {
 			return execution.JobExecutionId, nil
 		} else {
@@ -130,7 +130,7 @@ func (e *engine) doStart(ctx context.Context, jobName string, params string, asy
 			}
 		}
 	} else {
-		_logger.Error(ctx, "can not find job with name:%v", jobName)
+		DefaultLogger.Error(ctx, "can not find job with name:%v", jobName)
 		return -1, errors.Errorf("can not find job with name:%v", jobName)
 	}
 }
@@ -143,49 +143,49 @@ func (e *engine) Stop(ctx context.Context, jobId interface{}) error {
 			// find executions by jobName, then stop
 			jobInstance, err := e.repository.FindLastJobInstanceByName(job.Name())
 			if err != nil {
-				_logger.Error(ctx, "find last JobInstance error, jobName:%v, err:%v", job.Name(), err)
+				DefaultLogger.Error(ctx, "find last JobInstance error, jobName:%v, err:%v", job.Name(), err)
 				return err
 			}
 			if jobInstance != nil {
 				execution, err := e.repository.FindLastJobExecutionByInstance(jobInstance)
 				if err != nil {
-					_logger.Error(ctx, "find last JobExecution error, jobName:%v, jobInstanceId:%v, err:%v", job.Name(), jobInstance.JobInstanceId, err)
+					DefaultLogger.Error(ctx, "find last JobExecution error, jobName:%v, jobInstanceId:%v, err:%v", job.Name(), jobInstance.JobInstanceId, err)
 					return err
 				}
 				if execution != nil && execution.JobStatus == STARTING || execution.JobStatus == STARTED {
-					_logger.Info(ctx, "job will be stopped, jobName:%v, jobExecutionId:%v", job.Name(), execution.JobExecutionId)
+					DefaultLogger.Info(ctx, "job will be stopped, jobName:%v, jobExecutionId:%v", job.Name(), execution.JobExecutionId)
 					return job.Stop(ctx, execution)
 				} else {
-					_logger.Error(ctx, "there is no running job instance with name:%v to stop", id)
+					DefaultLogger.Error(ctx, "there is no running job instance with name:%v to stop", id)
 					return errors.Errorf("there is no running job instance with name:%v to stop", id)
 				}
 			} else {
-				_logger.Error(ctx, "there is no running job instance with name:%v to stop", id)
+				DefaultLogger.Error(ctx, "there is no running job instance with name:%v to stop", id)
 				return errors.Errorf("there is no running job instance with name:%v to stop", id)
 			}
 		} else {
-			_logger.Error(ctx, "can not find job with name:%v", id)
+			DefaultLogger.Error(ctx, "can not find job with name:%v", id)
 			return errors.Errorf("can not find job with name:%v", id)
 		}
 	case int64:
 		// find executions by execution id, if found then stop
 		execution, err := e.repository.FindJobExecution(id)
 		if err != nil {
-			_logger.Error(ctx, "find JobExecution by jobExecutionId error, jobExecutionId:%v, err:%v", id, err)
+			DefaultLogger.Error(ctx, "find JobExecution by jobExecutionId error, jobExecutionId:%v, err:%v", id, err)
 			return err
 		}
 		if execution == nil {
-			_logger.Error(ctx, "can not find job execution with execution id:%v", id)
+			DefaultLogger.Error(ctx, "can not find job execution with execution id:%v", id)
 			return errors.Errorf("can not find job execution with execution id:%v", id)
 		}
 		if job, ok := e.jobRegistry[execution.JobName]; ok {
 			return job.Stop(ctx, execution)
 		} else {
-			_logger.Error(ctx, "can not find job with name:%v", execution.JobName)
+			DefaultLogger.Error(ctx, "can not find job with name:%v", execution.JobName)
 			return errors.Errorf("can not find job with name:%v", execution.JobName)
 		}
 	}
-	_logger.Error(ctx, "job identifier:%v is either job name or job execution id", jobId)
+	DefaultLogger.Error(ctx, "job identifier:%v is either job name or job execution id", jobId)
 	return errors.Errorf("job identifier:%v is either job name or job execution id", jobId)
 }
 
@@ -207,7 +207,7 @@ func (e *engine) doRestart(ctx context.Context, jobId interface{}, async bool) (
 			// find executions by jobName, if count==1 then stop
 			jobInstance, err := e.repository.FindLastJobInstanceByName(job.Name())
 			if err != nil {
-				_logger.Error(ctx, "find last JobInstance error, jobName:%v, err:%v", job.Name(), err)
+				DefaultLogger.Error(ctx, "find last JobInstance error, jobName:%v, err:%v", job.Name(), err)
 				return -1, err
 			}
 			if jobInstance != nil {
@@ -216,27 +216,27 @@ func (e *engine) doRestart(ctx context.Context, jobId interface{}, async bool) (
 				return e.doStart(ctx, job.Name(), "", async)
 			}
 		}
-		_logger.Error(ctx, "can not find job with name:%v", id)
+		DefaultLogger.Error(ctx, "can not find job with name:%v", id)
 		return -1, errors.Errorf("can not find job with name:%v", id)
 	case int64:
 		// find executions by execution id, then start
 		execution, err := e.repository.FindJobExecution(id)
 		if err != nil {
-			_logger.Error(ctx, "find JobExecution by jobExecutionId error, jobExecutionId:%v, err:%v", id, err)
+			DefaultLogger.Error(ctx, "find JobExecution by jobExecutionId error, jobExecutionId:%v, err:%v", id, err)
 			return -1, err
 		}
 		if execution == nil {
-			_logger.Error(ctx, "can not find job execution with execution id:%v", id)
+			DefaultLogger.Error(ctx, "can not find job execution with execution id:%v", id)
 			return -1, errors.Errorf("can not find job execution with execution id:%v", id)
 		}
 		if job, ok := e.jobRegistry[execution.JobName]; ok {
 			params, _ := util.JsonString(execution.JobParams)
 			return e.doStart(ctx, job.Name(), params, async)
 		}
-		_logger.Error(ctx, "can not find job with name:%v", execution.JobName)
+		DefaultLogger.Error(ctx, "can not find job with name:%v", execution.JobName)
 		return -1, errors.Errorf("can not find job with name:%v", execution.JobName)
 	}
-	_logger.Error(ctx, "job identifier:%v is either job name or job execution id", jobId)
+	DefaultLogger.Error(ctx, "job identifier:%v is either job name or job execution id", jobId)
 	return -1, errors.Errorf("job identifier:%v is either job name or job execution id", jobId)
 }
 

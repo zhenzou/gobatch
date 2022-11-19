@@ -5,28 +5,28 @@ import (
 	"time"
 
 	"github.com/chararch/gobatch"
-	file2 "github.com/chararch/gobatch/extensions/file"
+	"github.com/chararch/gobatch/extensions/files"
 )
 
-var tradeFile = file2.FileObjectModel{
-	FileStore:     &file2.LocalFileSystem{},
+var tradeFile = files.FileObjectModel{
+	FileStore:     &files.LocalFileSystem{},
 	FileName:      "res/trade.data",
-	Type:          file2.TSV,
+	Type:          files.TSV,
 	Encoding:      "utf-8",
 	Header:        false,
 	ItemPrototype: &Trade{},
 }
 
-var tradeFileExport = file2.FileObjectModel{
-	FileStore:     &file2.LocalFileSystem{},
+var tradeFileExport = files.FileObjectModel{
+	FileStore:     &files.LocalFileSystem{},
 	FileName:      "res/{date,yyyyMMdd}/trade.csv",
-	Type:          file2.CSV,
+	Type:          files.CSV,
 	Encoding:      "utf-8",
-	Checksum:      file2.MD5,
+	Checksum:      files.MD5,
 	ItemPrototype: &Trade{},
 }
 
-var ftp = &file2.FTPFileSystem{
+var ftp = &files.FTPFileSystem{
 	Hort:        "localhost",
 	Port:        21,
 	User:        "gobatch",
@@ -34,15 +34,15 @@ var ftp = &file2.FTPFileSystem{
 	ConnTimeout: time.Second,
 }
 
-var copyFileToFtp = file2.FileMove{
+var copyFileToFtp = files.FileMove{
 	FromFileName:  "res/{date,yyyyMMdd}/trade.csv",
-	FromFileStore: &file2.LocalFileSystem{},
+	FromFileStore: &files.LocalFileSystem{},
 	ToFileStore:   ftp,
 	ToFileName:    "trade/{date,yyyyMMdd}/trade.csv",
 }
-var copyChecksumFileToFtp = file2.FileMove{
+var copyChecksumFileToFtp = files.FileMove{
 	FromFileName:  "res/{date,yyyyMMdd}/trade.csv.md5",
-	FromFileStore: &file2.LocalFileSystem{},
+	FromFileStore: &files.LocalFileSystem{},
 	ToFileStore:   ftp,
 	ToFileName:    "trade/{date,yyyyMMdd}/trade.csv.md5",
 }

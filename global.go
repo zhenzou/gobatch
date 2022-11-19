@@ -2,14 +2,19 @@ package gobatch
 
 import (
 	"database/sql"
+	"os"
 )
 
-// log
-var _logger Logger
+var DefaultLogger Logger
 
 // SetLogger set a logger instance for GoBatch
 func SetLogger(logger Logger) {
-	_logger = logger
+	DefaultLogger = logger
+}
+
+func init() {
+	DefaultLogger = NewLogger(os.Stdout, Info)
+
 }
 
 // task pool

@@ -10,8 +10,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/chararch/gobatch"
-	"github.com/chararch/gobatch/adapters/logger"
 	"github.com/chararch/gobatch/adapters/repository"
+	"github.com/chararch/gobatch/extensions/files"
 	"github.com/chararch/gobatch/util"
 )
 
@@ -40,7 +40,7 @@ func removeJobData() {
 func buildAndRunJob() {
 	sqlDb := openDB()
 
-	logger := logger.NewLogger(os.Stdout, logger.Info)
+	logger := gobatch.NewLogger(os.Stdout, gobatch.Info)
 	repo := repository.New(sqlDb, logger)
 	engine := gobatch.NewEngine(repo)
 
@@ -49,11 +49,29 @@ func buildAndRunJob() {
 
 	stepFactory := gobatch.NewStepBuilderFactory(repo, txnMgr)
 
-	step1 := stepFactory.Get("import_trade").ReadFile(tradeFile).Writer(&tradeImporter{sqlDb}).Partitions(10).Build()
-	step2 := stepFactory.Get("gen_repay_plan").Reader(&tradeReader{sqlDb}).Handler(&repayPlanHandler{sqlDb}).Partitions(10).Build()
-	step3 := stepFactory.Get("stats").Handler(&statsHandler{sqlDb}).Build()
-	step4 := stepFactory.Get("export_trade").Reader(&tradeReader{sqlDb}).WriteFile(tradeFileExport).Partitions(10).Build()
-	step5 := stepFactory.Get("upload_file_to_ftp").CopyFile(copyFileToFtp, copyChecksumFileToFtp).Build()
+	step1 := stepFactory.Get("import_trade").
+		Reader(files.NewReader(tradeFile)).
+		Writer(&tradeImporter{sqlDb}).
+		Partitions(10).
+		Build()
+
+	step2 := stepFactory.Get("gen_repay_plan").
+		Reader(&tradeReader{sqlDb}).
+		Handler(&repayPlanHandler{sqlDb}).
+		Partitions(10).
+		Build()
+
+	step3 := stepFactory.Get("stats").
+		Handler(&statsHandler{sqlDb}).
+		Build()
+	step4 := stepFactory.Get("export_trade").
+		Reader(&tradeReader{sqlDb}).
+		Writer(files.NewWriter(tradeFileExport)).
+		Partitions(10).
+		Build()
+	step5 := stepFactory.Get("upload_file_to_ftp").
+		Handler(files.NewCopier(copyFileToFtp, copyChecksumFileToFtp)).
+		Build()
 
 	factory := gobatch.NewJobBuilderFactory(repo)
 

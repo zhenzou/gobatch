@@ -2,8 +2,6 @@ package gobatch
 
 import (
 	"fmt"
-
-	file2 "github.com/chararch/gobatch/extensions/file"
 )
 
 const (
@@ -66,10 +64,6 @@ type StepBuilder interface {
 	Aggregator(aggregator Aggregator) StepBuilder
 	Listener(listener ...interface{}) StepBuilder
 
-	// ReadFile TODO remove
-	ReadFile(fd file2.FileObjectModel, readers ...interface{}) StepBuilder
-	WriteFile(fd file2.FileObjectModel, writers ...interface{}) StepBuilder
-	CopyFile(filesToMove ...file2.FileMove) StepBuilder
 	Build() Step
 }
 
@@ -202,60 +196,6 @@ func (builder *stepBuilder) Processor(processor Processor) StepBuilder {
 
 func (builder *stepBuilder) Writer(writer Writer) StepBuilder {
 	builder.writer = writer
-	return builder
-}
-
-func (builder *stepBuilder) ReadFile(fd file2.FileObjectModel, readers ...interface{}) StepBuilder {
-	fr := &fileReader{fd: fd}
-	if len(readers) > 0 {
-		for _, r := range readers {
-			switch rr := r.(type) {
-			case file2.FileItemReader:
-				fr.reader = rr
-			case file2.ChecksumVerifier:
-				fr.verifier = rr
-			}
-		}
-	}
-	if fr.reader == nil && fr.fd.Type != "" {
-		fr.reader = file2.GetFileItemReader(fr.fd.Type)
-	}
-	if fr.reader == nil {
-		panic("file type is non-standard and no FileItemReader specified")
-	}
-	builder.reader = fr
-	return builder
-}
-
-func (builder *stepBuilder) WriteFile(fd file2.FileObjectModel, writers ...interface{}) StepBuilder {
-	fw := &fileWriter{fd: fd}
-	if len(writers) > 0 {
-		for _, w := range writers {
-			switch ww := w.(type) {
-			case file2.FileItemWriter:
-				fw.writer = ww
-			case file2.ChecksumFlusher:
-				fw.checkumer = ww
-			case file2.FileMerger:
-				fw.merger = ww
-			}
-		}
-	}
-	if fw.writer == nil && fw.fd.Type != "" {
-		fw.writer = file2.GetFileItemWriter(fw.fd.Type)
-	}
-	if fw.writer == nil {
-		panic("file type is non-standard and no FileItemWriter specified")
-	}
-	if fw.merger == nil && fw.fd.Type != "" {
-		fw.merger = file2.GetFileMergeSplitter(fw.fd.Type)
-	}
-	builder.writer = fw
-	return builder
-}
-
-func (builder *stepBuilder) CopyFile(filesToMove ...file2.FileMove) StepBuilder {
-	builder.handler = &fileCopyHandler{filesToMove: filesToMove}
 	return builder
 }
 
