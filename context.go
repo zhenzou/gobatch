@@ -25,6 +25,18 @@ func NewBatchContext() *BatchContext {
 	return c
 }
 
+func (ctx *BatchContext) FromString(str string) error {
+	return json.Unmarshal([]byte(str), ctx)
+}
+
+func (ctx BatchContext) ToString() string {
+	bytes, err := json.Marshal(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return string(bytes)
+}
+
 func (ctx *BatchContext) Put(key string, value interface{}) {
 	ctx.ctx.kvs[key] = value
 }

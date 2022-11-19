@@ -37,11 +37,13 @@ func (j *stepBuilderFactory) Get(name string) StepBuilder {
 		panic("step name must not be empty")
 	}
 	return &stepBuilder{
-		name:               name,
-		repository:         j.repository,
-		txnMgr:             j.txnMgr,
-		processor:          &nilProcessor{},
-		writer:             &nilWriter{},
+		name:       name,
+		repository: j.repository,
+		txnMgr:     j.txnMgr,
+
+		processor: &noOpProcessor{},
+		writer:    &noOpWriter{},
+
 		chunkSize:          DefaultChunkSize,
 		partitions:         DefaultPartitions,
 		minPartitionSize:   DefaultMinPartitionSize,
@@ -67,12 +69,16 @@ type StepBuilder interface {
 }
 
 type stepBuilder struct {
-	name               string
-	task               Task
-	handler            Handler
-	reader             Reader
-	processor          Processor
-	writer             Writer
+	name       string
+	txnMgr     TransactionManager
+	repository Repository
+
+	task      Task
+	handler   Handler
+	reader    Reader
+	processor Processor
+	writer    Writer
+
 	chunkSize          uint
 	partitioner        Partitioner
 	partitions         uint
@@ -82,9 +88,6 @@ type stepBuilder struct {
 	stepListeners      []StepListener
 	chunkListeners     []ChunkListener
 	partitionListeners []PartitionListener
-
-	txnMgr     TransactionManager
-	repository Repository
 }
 
 func (builder *stepBuilder) Handler(handler interface{}) StepBuilder {
@@ -291,22 +294,22 @@ func (builder *stepBuilder) Build() Step {
 	return step
 }
 
-type nilProcessor struct {
-}
+type noOpProcessor struct{}
 
-func (p *nilProcessor) Process(item interface{}, chunkCtx *ChunkContext) (interface{}, BatchError) {
+func (p *noOpProcessor) Process(item interface{}, chunkCtx *ChunkContext) (interface{}, BatchError) {
 	return item, nil
 }
 
-type nilWriter struct {
+type noOpWriter struct{}
+
+func (w *noOpWriter) Open(execution *StepExecution) BatchError {
+	return nil
 }
 
-func (w *nilWriter) Open(execution *StepExecution) BatchError {
+func (w *noOpWriter) Write(items []interface{}, chunkCtx *ChunkContext) BatchError {
 	return nil
 }
-func (w *nilWriter) Write(items []interface{}, chunkCtx *ChunkContext) BatchError {
-	return nil
-}
-func (w *nilWriter) Close(execution *StepExecution) BatchError {
+
+func (w *noOpWriter) Close(execution *StepExecution) BatchError {
 	return nil
 }

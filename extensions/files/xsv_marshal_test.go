@@ -1,14 +1,13 @@
 package files
 
 import (
+	"encoding/json"
 	"log"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/bmizerany/assert"
-
-	"github.com/chararch/gobatch/util"
 )
 
 type Outer struct {
@@ -38,6 +37,15 @@ type Innner3 struct {
 	I2 int     `order:"10"`
 }
 
+// JsonString generate json string for an object
+func JsonString(v interface{}) (string, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 func TestUnmarshalByOrder(t *testing.T) {
 	fields := []string{"", "111", "T", "100", "init", "5", "0.2", "0.5", "2021-12-02 22:10:10", "abc", "10", "20211202", "Y"}
 	// r, err := xsvUnmarshalByOrder(fields, reflect.TypeOf(Outer{}))
@@ -58,7 +66,7 @@ func TestUnmarshalByOrder(t *testing.T) {
 	assert.Equal(t, *o.S2.T2, time.Date(2021, 12, 2, 22, 10, 10, 0, time.Local))
 	assert.Equal(t, *(*o.S3).S1, "abc")
 	assert.Equal(t, (*o.S3).I2, 10)
-	json, err := util.JsonString(o)
+	json, err := JsonString(o)
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +93,7 @@ func TestUnmarshalByHeader(t *testing.T) {
 	assert.Equal(t, *o.S2.T2, time.Date(2021, 12, 2, 22, 10, 10, 0, time.Local))
 	assert.Equal(t, *(*o.S3).S1, "abc")
 	assert.Equal(t, (*o.S3).I2, 0)
-	json, err := util.JsonString(o)
+	json, err := JsonString(o)
 	if err != nil {
 		panic(err)
 	}

@@ -12,7 +12,6 @@ import (
 	"github.com/chararch/gobatch"
 	"github.com/chararch/gobatch/adapters/repository"
 	"github.com/chararch/gobatch/adapters/txn"
-	"github.com/chararch/gobatch/util"
 )
 
 // simple task
@@ -81,10 +80,9 @@ func main() {
 
 	// run
 	// gobatch.StartAsync(context.Background(), job.Name(), "")
-	params, _ := util.JsonString(map[string]interface{}{
-		"rand": time.Now().Nanosecond(),
-	})
-	_, err = engine.Start(context.Background(), job.Name(), params)
+	parameters := gobatch.Parameters{}
+	parameters.Set("rand", time.Now().Nanosecond())
+	_, err = engine.Start(context.Background(), job.Name(), parameters)
 	if err != nil {
 		panic(err)
 	}

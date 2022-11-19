@@ -4,7 +4,7 @@ import "time"
 
 // the following models is db model, will replace by entity
 
-type BatchJobExecution struct {
+type jobExecutionDBModel struct {
 	JobExecutionId int64
 	JobInstanceId  int64
 	JobName        string
@@ -18,7 +18,7 @@ type BatchJobExecution struct {
 	Version        int64
 }
 
-type BatchStepExecution struct {
+type stepExecutionDBModel struct {
 	StepExecutionId  int64
 	JobExecutionId   int64
 	JobInstanceId    int64
@@ -42,4 +42,12 @@ type BatchStepExecution struct {
 	ExitMessage      *string
 	LastUpdated      time.Time
 	Version          int64
+}
+
+type jobInstanceDBModel struct {
+	JobInstanceId int64
+	JobName       string
+	JobKey        string
+	JobParams     string
+	CreateTime    time.Time
 }

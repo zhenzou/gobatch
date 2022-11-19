@@ -2,9 +2,9 @@ package gobatch
 
 import (
 	"fmt"
-	"github.com/bmizerany/assert"
-	"github.com/chararch/gobatch/util"
 	"testing"
+
+	"github.com/bmizerany/assert"
 )
 
 func TestBatchContext_Get(t *testing.T) {
@@ -36,12 +36,11 @@ func TestBatchContext_MarshalJSON(t *testing.T) {
 		Code: "3",
 	},
 	})
-	json, err := util.JsonString(batchCtx)
-	assert.Equal(t, nil, err)
+	json := batchCtx.ToString()
 	fmt.Printf("json:%v\n", json)
 
 	batchCtx2 := NewBatchContext()
-	err = util.ParseJson(json, batchCtx2)
+	err := batchCtx2.FromString(json)
 	assert.Equal(t, nil, err)
 	fmt.Printf("batchCtx:%+v\n", batchCtx)
 	fmt.Printf("batchCtx2:%+v\n", batchCtx2)

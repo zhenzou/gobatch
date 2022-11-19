@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/chararch/gobatch"
-	"github.com/chararch/gobatch/util"
 )
 
 func New(db *sql.DB, logger gobatch.Logger) gobatch.Repository {
@@ -24,12 +23,8 @@ type repositoryImpl struct {
 }
 
 // FindJobInstance load or save job instance by name & parameters
-func (r *repositoryImpl) FindJobInstance(jobName string, params map[string]interface{}) (*gobatch.JobInstance, gobatch.BatchError) {
-	str, err := util.JsonString(params)
-	if err != nil {
-		return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "jsonify job params failed", err)
-	}
-	key := util.MD5(str)
+func (r *repositoryImpl) FindJobInstance(jobName string, params gobatch.Parameters) (*gobatch.JobInstance, gobatch.BatchError) {
+	key := params.Footprint()
 	rows, err := r.db.Query("SELECT JOB_INSTANCE_ID, JOB_NAME, JOB_KEY, JOB_PARAMS, CREATE_TIME FROM BATCH_JOB_INSTANCE WHERE JOB_NAME=? AND JOB_KEY=?", jobName, key)
 	if err != nil {
 		return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "query job instance from db failed", err)
@@ -37,12 +32,12 @@ func (r *repositoryImpl) FindJobInstance(jobName string, params map[string]inter
 	defer rows.Close()
 
 	for rows.Next() {
-		inst := &gobatch.JobInstance{}
+		inst := jobInstanceDBModel{}
 		err = rows.Scan(&inst.JobInstanceId, &inst.JobName, &inst.JobKey, &inst.JobParams, &inst.CreateTime)
 		if err != nil {
 			return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "read job instance failed", err)
 		}
-		return inst, nil
+		return dbModelToJobInstance(inst)
 	}
 	return nil, nil
 }
@@ -55,50 +50,61 @@ func (r *repositoryImpl) FindLastJobInstanceByName(jobName string) (*gobatch.Job
 	defer rows.Close()
 
 	if rows.Next() {
-		inst := &gobatch.JobInstance{}
+		inst := jobInstanceDBModel{}
 		err = rows.Scan(&inst.JobInstanceId, &inst.JobName, &inst.JobKey, &inst.JobParams, &inst.CreateTime)
 		if err != nil {
 			return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "read job instance failed", err)
 		}
-		return inst, nil
+		return dbModelToJobInstance(inst)
 	}
 	return nil, nil
 }
 
-func (r *repositoryImpl) CreateJobInstance(jobName string, jobParams map[string]interface{}) (*gobatch.JobInstance, gobatch.BatchError) {
-	str, err := util.JsonString(jobParams)
+func dbModelToJobInstance(model jobInstanceDBModel) (*gobatch.JobInstance, gobatch.BatchError) {
+	parameters := gobatch.Parameters{}
+	err := parameters.FromString(model.JobParams)
 	if err != nil {
-		return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "jsonify job params failed", err)
+		return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "convert to job instance failed", err)
 	}
-	key := util.MD5(str)
+	return &gobatch.JobInstance{
+		Id:         model.JobInstanceId,
+		JobName:    model.JobName,
+		JobKey:     model.JobKey,
+		JobParams:  parameters,
+		CreateTime: model.CreateTime,
+	}, nil
+}
+
+func (r *repositoryImpl) CreateJobInstance(jobName string, parameters gobatch.Parameters) (*gobatch.JobInstance, gobatch.BatchError) {
+	footprint := parameters.Footprint()
 	jobInstance := &gobatch.JobInstance{
 		JobName:    jobName,
-		JobKey:     key,
-		JobParams:  str,
+		JobKey:     footprint,
+		JobParams:  parameters,
 		CreateTime: time.Now(),
 	}
-	res, err := r.db.Exec("INSERT INTO BATCH_JOB_INSTANCE(JOB_NAME, JOB_KEY, JOB_PARAMS, CREATE_TIME) VALUES(?, ?, ?, ?)", jobName, key, str, jobInstance.CreateTime)
+	res, err := r.db.Exec("INSERT INTO BATCH_JOB_INSTANCE(JOB_NAME, JOB_KEY, JOB_PARAMS, CREATE_TIME) VALUES(?, ?, ?, ?)", jobName, footprint, parameters.ToString(), jobInstance.CreateTime)
 	if err != nil {
 		return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "save job instance to db failed", err)
 	}
 	id, er := res.LastInsertId()
 	if er == nil {
-		jobInstance.JobInstanceId = id
+		jobInstance.Id = id
 	}
 	return jobInstance, nil
 }
 
-// load or save job executions by instance
+// FindLastJobExecutionByInstance load or save job executions by instance
 func (r *repositoryImpl) FindLastJobExecutionByInstance(jobInstance *gobatch.JobInstance) (*gobatch.JobExecution, gobatch.BatchError) {
-	rows, err := r.db.Query("SELECT JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_JOB_EXECUTION WHERE JOB_INSTANCE_ID=? ORDER BY JOB_EXECUTION_ID DESC", jobInstance.JobInstanceId)
+	rows, err := r.db.Query("SELECT JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, START_TIME, END_TIME, STATUS, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION FROM BATCH_JOB_EXECUTION WHERE JOB_INSTANCE_ID=? ORDER BY JOB_EXECUTION_ID DESC", jobInstance.Id)
 	if err != nil {
 		return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "query job executions from db failed", err)
 	}
 	defer rows.Close()
 
-	jobParams, _ := gobatch.ParseJobParams(jobInstance.JobParams)
+	jobParams := jobInstance.JobParams
 	if rows.Next() {
-		execution := &BatchJobExecution{}
+		execution := &jobExecutionDBModel{}
 		err = rows.Scan(&execution.JobExecutionId, &execution.JobInstanceId, &execution.JobName, &execution.CreateTime, &execution.StartTime, &execution.EndTime, &execution.Status, &execution.ExitCode, &execution.ExitMessage, &execution.LastUpdated, &execution.Version)
 		if err != nil {
 			return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "read job executions failed", err)
@@ -127,7 +133,7 @@ func (r *repositoryImpl) FindJobExecution(jobExecutionId int64) (*gobatch.JobExe
 	defer rows.Close()
 
 	if rows.Next() {
-		execution := &BatchJobExecution{}
+		execution := &jobExecutionDBModel{}
 		err = rows.Scan(&execution.JobExecutionId, &execution.JobInstanceId, &execution.JobName, &execution.CreateTime, &execution.StartTime, &execution.EndTime, &execution.Status, &execution.ExitCode, &execution.ExitMessage, &execution.LastUpdated, &execution.Version)
 		if err != nil {
 			return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "read job executions failed", err)
@@ -264,7 +270,7 @@ func (r *repositoryImpl) FindLastCompleteStepExecution(jobInstanceId int64, step
 
 func (r *repositoryImpl) extractStepExecution(rows *sql.Rows) (*gobatch.StepExecution, gobatch.BatchError) {
 	// 1. query step execution
-	execution := &BatchStepExecution{}
+	execution := &stepExecutionDBModel{}
 	err := rows.Scan(&execution.StepExecutionId, &execution.StepName, &execution.JobExecutionId, &execution.JobInstanceId, &execution.JobName, &execution.CreateTime, &execution.StartTime, &execution.EndTime, &execution.Status, &execution.CommitCount, &execution.ReadCount, &execution.FilterCount, &execution.WriteCount, &execution.ReadSkipCount, &execution.WriteSkipCount, &execution.ProcessSkipCount, &execution.RollbackCount, &execution.ExecutionContext, &execution.ExitCode, &execution.ExitMessage, &execution.LastUpdated, &execution.Version)
 	if err != nil {
 		return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "read step executions failed", err)
@@ -279,11 +285,13 @@ func (r *repositoryImpl) extractStepExecution(rows *sql.Rows) (*gobatch.StepExec
 	}
 	// 3. construct step execution
 	stepContext := gobatch.NewBatchContext()
-	if err = util.ParseJson(*batchStepCtx.StepContext, stepContext); err != nil {
+	err = stepContext.FromString(*batchStepCtx.StepContext)
+	if err != nil {
 		return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "parse step context error", err)
 	}
 	stepExecutionContext := gobatch.NewBatchContext()
-	if err = util.ParseJson(execution.ExecutionContext, stepExecutionContext); err != nil {
+	err = stepExecutionContext.FromString(execution.ExecutionContext)
+	if err != nil {
 		return nil, gobatch.NewBatchError(gobatch.ErrCodeGeneral, "parse step execution context error", err)
 	}
 	stepExecution := &gobatch.StepExecution{
@@ -291,7 +299,7 @@ func (r *repositoryImpl) extractStepExecution(rows *sql.Rows) (*gobatch.StepExec
 		StepName:             execution.StepName,
 		StepStatus:           gobatch.BatchStatus(execution.Status),
 		StepContext:          stepContext,
-		StepContextId:        batchStepCtx.StepContextId,
+		StepContextId:        batchStepCtx.Id,
 		StepExecutionContext: stepExecutionContext,
 		CreateTime:           execution.CreateTime,
 		StartTime:            execution.StartTime,
@@ -315,7 +323,7 @@ func (r *repositoryImpl) SaveStepExecution(ctx context.Context, execution *gobat
 	args := make([]interface{}, 0)
 	// 1. save step context
 	if execution.StepContextId == 0 {
-		stepCtxJson, _ := util.JsonString(execution.StepContext)
+		stepCtxJson := execution.StepContext.ToString()
 		stepContext := &gobatch.StepContext{
 			JobInstanceId: execution.JobExecution.JobInstanceId,
 			StepName:      execution.StepName,
@@ -325,16 +333,13 @@ func (r *repositoryImpl) SaveStepExecution(ctx context.Context, execution *gobat
 		if err := r.SaveStepContexts(stepContext); err != nil {
 			return err
 		}
-		execution.StepContextId = stepContext.StepContextId
+		execution.StepContextId = stepContext.Id
 	}
 	// 2. save step execution
 	if execution.StepExecutionId == 0 {
 		buff.WriteString("INSERT INTO BATCH_STEP_EXECUTION(STEP_NAME, JOB_EXECUTION_ID, JOB_INSTANCE_ID, JOB_NAME, CREATE_TIME, STATUS, COMMIT_COUNT, READ_COUNT, FILTER_COUNT, WRITE_COUNT, READ_SKIP_COUNT, WRITE_SKIP_COUNT, PROCESS_SKIP_COUNT, ROLLBACK_COUNT, EXECUTION_CONTEXT, STEP_CONTEXT_ID, EXIT_CODE, EXIT_MESSAGE, LAST_UPDATED, VERSION) VALUES")
 		buff.WriteString("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		executionCtxJson, err := util.JsonString(execution.StepExecutionContext)
-		if err != nil {
-			return gobatch.NewBatchError(gobatch.ErrCodeGeneral, "jsonify step execution context failed", err)
-		}
+		executionCtxJson := execution.StepExecutionContext.ToString()
 		failMsg := ""
 		if execution.FailError != nil {
 			failMsg = execution.FailError.StackTrace()
@@ -352,7 +357,7 @@ func (r *repositoryImpl) SaveStepExecution(ctx context.Context, execution *gobat
 		}
 		execution.Version = 1
 	} else {
-		executionCtxStr, _ := util.JsonString(execution.StepExecutionContext)
+		executionCtxStr := execution.StepExecutionContext.ToString()
 		buff.WriteString("UPDATE BATCH_STEP_EXECUTION SET STATUS=?, COMMIT_COUNT=?, READ_COUNT=?, FILTER_COUNT=?, WRITE_COUNT=?, READ_SKIP_COUNT=?, WRITE_SKIP_COUNT=?, PROCESS_SKIP_COUNT=?, ROLLBACK_COUNT=?, EXECUTION_CONTEXT=?, STEP_CONTEXT_ID=?, EXIT_CODE=?, EXIT_MESSAGE=?, START_TIME=?, END_TIME=?, LAST_UPDATED=?, VERSION=? WHERE STEP_EXECUTION_ID=? AND VERSION=?")
 		failMsg := ""
 		if execution.FailError != nil {
@@ -426,7 +431,7 @@ func (r *repositoryImpl) FindStepContext(jobInstanceId int64, stepName string) (
 
 	if rows.Next() {
 		stepCtx := &gobatch.StepContext{}
-		err = rows.Scan(&stepCtx.StepContextId, &stepCtx.JobInstanceId, &stepCtx.StepName, &stepCtx.StepContext, &stepCtx.CreateTime)
+		err = rows.Scan(&stepCtx.Id, &stepCtx.JobInstanceId, &stepCtx.StepName, &stepCtx.StepContext, &stepCtx.CreateTime)
 		if err != nil {
 			return nil, gobatch.NewBatchError(gobatch.ErrCodeDbFail, "read step context failed", err)
 		}
@@ -438,7 +443,7 @@ func (r *repositoryImpl) FindStepContext(jobInstanceId int64, stepName string) (
 func (r *repositoryImpl) SaveStepContexts(stepCtx *gobatch.StepContext) gobatch.BatchError {
 	buff := bytes.NewBufferString("")
 	args := make([]interface{}, 0)
-	if stepCtx.StepContextId == 0 {
+	if stepCtx.Id == 0 {
 		buff.WriteString("INSERT INTO BATCH_STEP_CONTEXT(JOB_INSTANCE_ID, STEP_NAME, STEP_CONTEXT, CREATE_TIME) VALUES")
 		buff.WriteString("(?, ?, ?, ?)")
 		args = append(args, stepCtx.JobInstanceId, stepCtx.StepName, stepCtx.StepContext, stepCtx.CreateTime)
@@ -448,7 +453,7 @@ func (r *repositoryImpl) SaveStepContexts(stepCtx *gobatch.StepContext) gobatch.
 		}
 		id, er := res.LastInsertId()
 		if er == nil {
-			stepCtx.StepContextId = id
+			stepCtx.Id = id
 		}
 		buff.Reset()
 		args = args[0:0]

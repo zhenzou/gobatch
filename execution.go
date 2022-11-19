@@ -1,6 +1,7 @@
 package gobatch
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -9,7 +10,7 @@ type JobExecution struct {
 	JobExecutionId int64
 	JobInstanceId  int64
 	JobName        string
-	JobParams      map[string]interface{}
+	JobParams      Parameters
 	JobStatus      BatchStatus
 	StepExecutions []*StepExecution
 	JobContext     *BatchContext
@@ -64,6 +65,14 @@ func (execution *StepExecution) finish(err BatchError) {
 func (execution *StepExecution) start() {
 	execution.StartTime = time.Now()
 	execution.StepStatus = STARTED
+}
+
+func (execution *StepExecution) ToString() string {
+	bytes, err := json.Marshal(*execution)
+	if err != nil {
+		panic(err)
+	}
+	return string(bytes)
 }
 
 func (execution *StepExecution) Clone() *StepExecution {

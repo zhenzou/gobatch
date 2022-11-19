@@ -13,7 +13,6 @@ import (
 	"github.com/chararch/gobatch/adapters/repository"
 	"github.com/chararch/gobatch/adapters/txn"
 	"github.com/chararch/gobatch/extensions/files"
-	"github.com/chararch/gobatch/util"
 )
 
 func openDB() *sql.DB {
@@ -78,9 +77,8 @@ func buildAndRunJob() {
 
 	engine.Register(job)
 
-	params, _ := util.JsonString(map[string]interface{}{
-		"date": time.Now().Format("2006-01-02"),
-		"rand": time.Now().Nanosecond(),
-	})
-	engine.Start(context.Background(), job.Name(), params)
+	parameters := gobatch.Parameters{}
+	parameters.Set("date", time.Now().Format("2006-01-02"))
+	parameters.Set("rand", time.Now().Nanosecond())
+	engine.Start(context.Background(), job.Name(), parameters)
 }

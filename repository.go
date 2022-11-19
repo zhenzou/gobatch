@@ -5,7 +5,7 @@ import (
 )
 
 type Repository interface {
-	CreateJobInstance(jobName string, jobParams map[string]interface{}) (*JobInstance, BatchError)
+	CreateJobInstance(jobName string, parameters Parameters) (*JobInstance, BatchError)
 	SaveJobExecution(execution *JobExecution) BatchError
 	CheckJobStopping(execution *JobExecution) (bool, BatchError)
 
@@ -13,7 +13,7 @@ type Repository interface {
 	UpdateStepStatus(execution *StepExecution) BatchError
 	SaveStepContexts(stepCtx *StepContext) BatchError
 
-	FindJobInstance(jobName string, params map[string]interface{}) (*JobInstance, BatchError)
+	FindJobInstance(jobName string, params Parameters) (*JobInstance, BatchError)
 	FindLastJobInstanceByName(jobName string) (*JobInstance, BatchError)
 	FindLastJobExecutionByInstance(jobInstance *JobInstance) (*JobExecution, BatchError)
 	FindJobExecution(jobExecutionId int64) (*JobExecution, BatchError)
