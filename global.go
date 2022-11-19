@@ -1,7 +1,6 @@
 package gobatch
 
 import (
-	"database/sql"
 	"os"
 )
 
@@ -34,29 +33,4 @@ func SetMaxRunningJobs(size int) {
 // SetMaxRunningSteps set max number of parallel steps for GoBatch
 func SetMaxRunningSteps(size int) {
 	stepPool.SetMaxSize(size)
-}
-
-// db
-var db *sql.DB
-
-// SetDB register a *sql.DB instance for GoBatch
-func SetDB(sqlDb *sql.DB) {
-	if sqlDb == nil {
-		panic("sqlDb must not be nil")
-	}
-	db = sqlDb
-	if txManager == nil {
-		txManager = &DefaultTxManager{sqlDb}
-	}
-}
-
-// transaction manager
-var txManager TransactionManager
-
-// SetTransactionManager register a TransactionManager instance for GoBatch
-func SetTransactionManager(txMgr TransactionManager) {
-	if txMgr == nil {
-		panic("transaction manager must not be nil")
-	}
-	txManager = txMgr
 }

@@ -63,7 +63,6 @@ type StepBuilder interface {
 	Partitions(partitions uint, partitionSize ...uint) StepBuilder
 	Aggregator(aggregator Aggregator) StepBuilder
 	Listener(listener ...interface{}) StepBuilder
-
 	Build() Step
 }
 
@@ -245,22 +244,27 @@ func (builder *stepBuilder) Listener(listener ...interface{}) StepBuilder {
 
 func (builder *stepBuilder) Build() Step {
 	var step Step
+	var baseStep = baseStep{
+		name:       builder.name,
+		repository: builder.repository,
+		txMgr:      builder.txnMgr,
+	}
 	if builder.handler != nil {
-		step = newSimpleStep(builder.name, builder.handler, builder.stepListeners)
+		step = newSimpleStep(baseStep, builder.handler, builder.stepListeners)
 	} else if builder.task != nil {
-		step = newSimpleStep(builder.name, builder.task, builder.stepListeners)
+		step = newSimpleStep(baseStep, builder.task, builder.stepListeners)
 	} else if builder.reader != nil {
-		if txManager == nil {
-			panic(fmt.Sprintf("you must specify a transaction manager with gobatch.SetTransactionManager() before constructing chunk step:%v", builder.name))
+		if builder.txnMgr == nil {
+			panic(fmt.Sprintf("you must specify a transaction manager before constructing chunk step:%v", builder.name))
 		}
 		reader := builder.reader
 		writer := builder.writer
-		step = newChunkStep(builder.name, reader, builder.processor, writer, builder.chunkSize, builder.stepListeners, builder.chunkListeners)
+		step = newChunkStep(baseStep, reader, builder.processor, writer, builder.chunkSize, builder.stepListeners, builder.chunkListeners)
 	}
 
 	if step != nil {
 		if builder.partitioner != nil {
-			step = newPartitionStep(step, builder.partitioner, builder.partitions, builder.aggregator, builder.stepListeners, builder.partitionListeners)
+			step = newPartitionStep(baseStep, step, builder.partitioner, builder.partitions, builder.aggregator, builder.stepListeners, builder.partitionListeners)
 		} else if builder.partitions > 1 {
 			if builder.reader != nil {
 				if r, ok := builder.reader.(PartitionerFactory); ok {
@@ -271,7 +275,7 @@ func (builder *stepBuilder) Build() Step {
 							aggregator = aggr
 						}
 					}
-					step = newPartitionStep(step, partitioner, builder.partitions, aggregator, builder.stepListeners, builder.partitionListeners)
+					step = newPartitionStep(baseStep, step, partitioner, builder.partitions, aggregator, builder.stepListeners, builder.partitionListeners)
 				} else {
 					panic(fmt.Sprintf("can not partition step[%s] without Partitioner or PartitionerFactory\n", builder.name))
 				}

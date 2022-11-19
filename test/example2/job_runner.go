@@ -11,6 +11,7 @@ import (
 
 	"github.com/chararch/gobatch"
 	"github.com/chararch/gobatch/adapters/repository"
+	"github.com/chararch/gobatch/adapters/txn"
 	"github.com/chararch/gobatch/extensions/files"
 	"github.com/chararch/gobatch/util"
 )
@@ -44,9 +45,7 @@ func buildAndRunJob() {
 	repo := repository.New(sqlDb, logger)
 	engine := gobatch.NewEngine(repo)
 
-	txnMgr := gobatch.NewTransactionManager(sqlDb)
-	gobatch.SetTransactionManager(txnMgr)
-
+	txnMgr := txn.NewTransactionManager(sqlDb)
 	stepFactory := gobatch.NewStepBuilderFactory(repo, txnMgr)
 
 	step1 := stepFactory.Get("import_trade").

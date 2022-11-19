@@ -11,6 +11,7 @@ import (
 
 	"github.com/chararch/gobatch"
 	"github.com/chararch/gobatch/adapters/repository"
+	"github.com/chararch/gobatch/adapters/txn"
 	"github.com/chararch/gobatch/util"
 )
 
@@ -60,7 +61,7 @@ func main() {
 	repo := repository.New(db, logger)
 	engine := gobatch.NewEngine(repo)
 
-	txnMgr := gobatch.NewTransactionManager(db)
+	txnMgr := txn.NewTransactionManager(db)
 
 	stepFactory := gobatch.NewStepBuilderFactory(repo, txnMgr)
 	// build steps

@@ -20,6 +20,7 @@ type Step interface {
 type baseStep struct {
 	name       string
 	repository Repository
+	txMgr      TransactionManager
 }
 
 func (step *baseStep) Name() string {
@@ -69,28 +70,24 @@ func (h *handlerAdapter) Handle(execution *StepExecution) BatchError {
 	return h.task(execution)
 }
 
-func newSimpleStep(name string, handler interface{}, listeners []StepListener) *simpleStep {
+func newSimpleStep(base baseStep, handler interface{}, listeners []StepListener) *simpleStep {
 	switch h := handler.(type) {
 	case Handler:
 		return &simpleStep{
-			baseStep: baseStep{
-				name: name,
-			},
+			baseStep:  base,
 			handler:   h,
 			listeners: listeners,
 		}
 	case Task:
 		return &simpleStep{
-			baseStep: baseStep{
-				name: name,
-			},
+			baseStep: base,
 			handler: &handlerAdapter{
 				task: h,
 			},
 			listeners: listeners,
 		}
 	default:
-		panic(fmt.Sprintf("not supported step handler:%v for:%v", handler, name))
+		panic(fmt.Sprintf("not supported step handler:%v for:%v", handler, base))
 	}
 
 }
@@ -176,11 +173,9 @@ func (ch *chunk) skip(index int) {
 	ch.items = ch.items[:size-1]
 }
 
-func newChunkStep(name string, reader Reader, processor Processor, writer Writer, chunkSize uint, listeners []StepListener, chunkListeners []ChunkListener) *chunkStep {
+func newChunkStep(base baseStep, reader Reader, processor Processor, writer Writer, chunkSize uint, listeners []StepListener, chunkListeners []ChunkListener) *chunkStep {
 	return &chunkStep{
-		baseStep: baseStep{
-			name: name,
-		},
+		baseStep:       base,
 		reader:         reader,
 		processor:      processor,
 		writer:         writer,
@@ -224,7 +219,7 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 	input := newChunk()
 	output := newChunk()
 	for !input.end {
-		tx, txErr := txManager.BeginTx()
+		tx, txErr := step.txMgr.BeginTx()
 		if txErr != nil {
 			DefaultLogger.Error(ctx, "start transaction err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, txErr)
 			err = txErr
@@ -237,16 +232,16 @@ func (step *chunkStep) Exec(ctx context.Context, execution *StepExecution) (err 
 		err = step.doChunk(ctx, chunkContext, input, output)
 		if err != nil {
 			DefaultLogger.Error(ctx, "doChunk err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, err)
-			txErr = txManager.Rollback(tx)
+			txErr = step.txMgr.Rollback(tx)
 			if txErr != nil {
 				DefaultLogger.Error(ctx, "rollback transaction err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, txErr)
 			}
 			break
 		}
-		txErr = txManager.Commit(tx)
+		txErr = step.txMgr.Commit(tx)
 		if txErr != nil {
 			DefaultLogger.Error(ctx, "commit transaction err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, txErr)
-			txErr2 := txManager.Rollback(tx)
+			txErr2 := step.txMgr.Rollback(tx)
 			if txErr2 != nil {
 				DefaultLogger.Error(ctx, "rollback transaction err, jobExecutionId:%v, stepName:%v, err:%v", execution.JobExecution.JobExecutionId, execution.StepName, txErr)
 			}
@@ -423,11 +418,9 @@ type partitionStep struct {
 	taskPool           *taskPool
 }
 
-func newPartitionStep(step Step, partitioner Partitioner, partitions uint, aggregator Aggregator, listeners []StepListener, partitionListeners []PartitionListener) *partitionStep {
+func newPartitionStep(baseStep baseStep, step Step, partitioner Partitioner, partitions uint, aggregator Aggregator, listeners []StepListener, partitionListeners []PartitionListener) *partitionStep {
 	return &partitionStep{
-		baseStep: baseStep{
-			name: step.Name(),
-		},
+		baseStep:           baseStep,
 		step:               step,
 		partitions:         partitions,
 		partitioner:        partitioner,
